@@ -4,9 +4,9 @@
 <widget xmlns     = "http://www.w3.org/ns/widgets"
         xmlns:gap = "http://phonegap.com/ns/1.0"
         id        = "com.livetrack24.taskset"
-        version   = "1.0.1">
+        version   = "1.0.2">
 
-    <name>Task setting with SMS</name>
+    <name>LiveTrack24 Set Task with SMS</name>
 
     <description>
         This app helps you create the special SMS format to set up tasks in LiveTrack24.com
