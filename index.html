@@ -568,6 +568,25 @@ body {background: #ffffff;}
 				<a class="btn btn-lg  btn-warning" href="javascript:getTaskDetails();">2. Get Task Waypoints (only once)</a>
 			</div>
 
+			<div class="row">
+				<div class="col-xs-12">
+					<a class="btn btn-lg btn-primary" href="javascript:$('#instructions').toggle();">Instructions</a>
+					<div id="instructions" style="display:none;">
+						<ul>
+							<li>To find your userID go to "My Account" -> "Edit account" and look at the url. Your userID is the numbers after user_id/ </li>
+							<li>Your User Pin is the "Mobile Pin 1" that can be found on "My Account" -> "Edit account"</li>
+							<li>Important: make sure that you have some SMS credits on your account and the phone number you have entered in your profile is
+								correct. LiveTrack24 will use your SMS credits and your declered phone number to send you back a confirmation of the task definition</li>
+							<li>When you click on the red button to send the SMS, you will be redirected to the default SMS app of yuor phone.
+								The phone number will be already be filled in, and the content of the SMS message will be copied to the clipboard. You will need
+								to manually paste it into the message and send the SMS. The cost of the SMS is a normal international SMS.
+							</li>
+						</ul>
+
+					</div>
+				</div>
+			</div>
+
 			<div id="resultDiv" class="alert alert-success" style="display:none;"></div>
 
 		</div>
