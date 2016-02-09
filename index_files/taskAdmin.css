@@ -1,0 +1,82 @@
+
+.galleryDiv {
+    background-color: #f5efb1;
+}
+
+.taskAdminTable td {
+	border:none;
+	border-top:1px solid #F2F2F2;
+
+	padding:5px;
+    padding-left: 20px;
+    vertical-align: middle;
+}
+
+
+.whatisthisDiv {
+	display:none;
+	background-color:#DFEDEE;
+	padding:4px;
+}
+
+.green td , .green {
+    background-color:#C4F8A5;
+}
+
+#taskMenuTopAdmin .nav-tabs > li.active > a, .nav-tabs > li.active > a:hover, .nav-tabs > li.active > a:focus {
+
+    background-color: #3071a9;
+    background-image: linear-gradient(to bottom, #428bca 0px, #3071a9 100%);
+    background-repeat: repeat-x;
+    border-color: #2d6ca2;
+
+
+    color: #ffffff;
+}
+
+
+/*
+	.elfinder-cwd-icon {
+		width: 148px;
+		height: 148px;
+	}*/
+.elfinder-cwd-icon-application {
+    margin-top: 50px;
+}
+.elfinder-cwd-view-icons .elfinder-cwd-file-wrapper {
+    width: 152px;
+    height: 152px;
+}
+.elfinder-cwd-view-icons .elfinder-cwd-file {
+    width: 154px;
+    height: 175px;
+}
+
+.elfinder-cwd-icon-image {
+    width: 148px;
+    height: 148px;
+}
+
+
+
+.pill-blue, .pill-blue .active a,
+.pill-blue .active a:hover {
+    background-color: #a5cdff !important;
+    color: #fff;
+    border: 1px solid #5B96E0;
+}
+
+li.pill-color>a:link, li.pill-color>a:visited, li.pill-color>a:active {
+    padding-left: 8px;
+    padding-right: 8px;
+
+    font-size: 13px;
+}
+
+.pill-warning, .pill-warning .active a,
+.pill-warning .active a:hover {
+    color: #fff;
+    background-color: #ed9c28;
+    border-color: #d58512;
+
+}

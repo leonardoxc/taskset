@@ -1,0 +1,1777 @@
+
+<!-- saved from url=(0046)http://www.livetrack24.com/mobile/docs/taskset -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body><div style="clear:both;"><link rel="stylesheet" type="text/css" href="./index_files/taskAdmin.css">
+<script language="javascript" src="./index_files/jquery.js"></script>
+<link rel="stylesheet" type="text/css" href="./index_files/grouped.min.css">
+<link rel="stylesheet" type="text/css" href="./index_files/bootstrap.min.css">
+<link rel="stylesheet" type="text/css" href="./index_files/bootstrap-theme.min.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script>
+	var maxTpnum=20;
+	var maxTpnum0=9;
+
+	var taskID="";
+	var taskPass="";
+	var userID="";
+	var userPin="";
+	var taskCat=0;
+
+	var waypoints=[];
+
+	var taskTurnpoints=[];
+	var taskInfo=[];
+	var taskDefinitionStr='';
+
+	var taskName='Task Name';
+
+	var isPg=0;
+	var isGliding=0;
+	var isOther=0;
+
+	$(document).ready(function() {
+
+		taskID=localStorage.getItem('taskID');
+		taskPass=localStorage.getItem('taskPass');
+		userID=localStorage.getItem('userID');
+		userPin=localStorage.getItem('userPin');
+
+		waypoints=[];
+		waypoints=JSON.parse(localStorage.getItem('waypoints'));
+		if (!waypoints) waypoints=[];
+		taskName=localStorage.getItem('taskName');
+		taskCat=localStorage.getItem('taskCat');
+
+
+		showRows();
+
+		updateFields();
+
+		$(".taskAdminTable tr:even").css("background-color", "#FAFAFF");
+		$(".taskAdminTable tr:odd").css("background-color", "#FFFFFF");
+
+
+
+		$(".tpTr").each(function(index){
+			var i=$(this).attr('id').substr(4);
+			viewTypes(i);
+			//viewSubTypes3(i);
+		});
+
+		document.getElementById("sendSMSbutton").addEventListener("click", function() {
+			copyToClipboard(document.getElementById("taskDefinitionStr"));
+		});
+
+	});
+
+
+	function storeValues() {
+		taskID=$("#taskID").val();
+		taskPass=$("#taskPass").val();
+		userID=$("#userID").val();
+		userPin=$("#userPin").val();
+		taskName=$("#taskName").html();
+
+		localStorage.setItem('taskID', taskID);
+		localStorage.setItem('taskPass', taskPass);
+		localStorage.setItem('userID', userID);
+		localStorage.setItem('userPin', userPin);
+
+
+		$("#resultDiv").html('Values Stored OK').fadeTo(1500, 500).slideUp(500);
+		// getTaskDetails();
+	}
+
+	function updateFields() {
+
+		$("#taskID").val(taskID);
+		$("#taskPass").val(taskPass);
+		$("#userID").val(userID);
+		$("#userPin").val(userPin);
+		// $("#waypoints").value(waypoints);
+		if (taskName) $("#taskName").html(taskName);
+
+		isPg=(taskCat==1)?1:0;
+		var isGliding=(taskCat==8)?1:0;
+		var isOther=(taskCat==1 || taskCat==8)?0:1;
+
+		if (isPg) showPg();
+		else if (isGliding) showGliding();
+		else showOther();
+
+		var selectHtml="<option value='0'>Select Turnpoint</option>\n";
+		for (index = 0; index < waypoints.length; ++index) {
+			var wpt=waypoints[index];
+			selectHtml+="<option value='"+wpt['name']+"'>"+wpt['desc']+"</option>\n";
+		}
+
+		$(".tpselect").each( function($this){
+			$(this).html(selectHtml);
+		});
+	}
+
+
+	function getTaskDetails() {
+
+		if (!taskID ) return;
+		$.get('http://www.livetrack24.com/ajax.live_task.php',{
+				op:"getTaskDetails",taskID:taskID,taskPass:taskPass
+				}, function(result) {
+
+				var jsonResult = eval('(' + result + ')');
+				waypoints=jsonResult.waypoints;
+				taskName=jsonResult.name;
+				taskCat=jsonResult.taskCat;
+
+				localStorage.setItem('waypoints', JSON.stringify(waypoints) );
+				localStorage.setItem('taskName', taskName);
+				localStorage.setItem('taskCat',taskCat );
+				updateFields();
+				$("#resultDiv").html("Loaded Task OK").fadeTo(1500, 500).slideUp(500);
+
+			});
+
+	}
+
+	function getTaskDefinition(waypoints,taskInfo) {
+		var taskTypes= {
+			'Race to Goal':'race',
+			'Elapsed Time':'elap',
+			'Open Distance':'open'
+		};
+
+		var taskType= taskTypes[ taskInfo['taskType'] ];
+
+		if (!taskType) taskType='race';
+
+		var taskDefStr='t1.1 '+taskType;
+
+		if (taskInfo['taskStatus']>0) {
+			if (taskInfo['taskStatus']==1) taskDefStr+='.p';
+			else if (taskInfo['taskStatus']==2) taskDefStr+='.c';
+			else if (taskInfo['taskStatus']==4) taskDefStr+='.s';
+		}
+		// all time are in minutes from 00:00, local times
+		taskDefStr+=' wo'+(taskInfo['windowOpen']);
+		taskDefStr+=' wc'+(taskInfo['windowClose']);
+		taskDefStr+=' so'+(taskInfo['startOpen']);
+		taskDefStr+=' tc'+(taskInfo['landingDeadline']);
+		// t1.1 race wo1340 wc+200 so+20 tc1900 d03 b42.ss.r6000 b43 b55 b54 a06.es.r1000 a06.gl.r200
+
+
+		for (index = 0; index < waypoints.length; ++index) {
+			var wpt=waypoints[index];
+
+			if (wpt['radius']!=400) radStr='.r'+wpt['radius'];
+			else radStr='';
+
+			tpName=wpt['tpname'].substr(0,2).toLowerCase();
+			if (wpt['wType']=='START') {
+				tpName+='.ss';
+			} else if (wpt['wType']=='ES') {
+				if (wpt['gradientRatio'] > 0) {
+					tpName+='.ce.g';
+					gradientStr= Math.round( wpt['gradientRatio'] * 10 );
+					if (gradientStr % 10 == 0) gradientStr = round( wpt['gradientRatio'] );
+					tpName+=gradientStr;
+					if (wpt['radius']>0) $radStr='.r'+wpt['radius'];
+					else radStr='';
+				} else {
+					tpName+='.es';
+				}
+			} else if (wpt['wType']=='GOAL' && wpt['shapeType']==2) {
+				tpName+='.gl';
+			}
+			taskDefStr+=' '+tpName+radStr;
+
+		}
+		return taskDefStr;
+	}
+
+	function conv_min2Time_2(mins) {
+		return sprintf("%02d%02d",mins/60,mins%60);
+	}
+
+	function createTaskDefinition() { // get the task from the form elements
+		var taskTurnpoints=[];
+		var tpNum=0;
+
+		for(var i=0; i<maxTpnum;i++) {
+			var row=$("#row_"+i);
+
+			var tpType=$("#tp"+i+"_type").val();
+			var tpName=$("#compTp"+i).val();
+
+			var shapeType=$("#tp"+i+"_shapeType").val();
+			var radius=$("#tp"+i+"_radius").val();
+			var angle=$("#tp"+i+"_angle").val();
+			var angle2=$("#tp"+i+"_angle2").val();
+			var shapeType2=	$("#tp"+i+"_shapeType2").val();
+			var gradientRatio=$("#tp"+i+"_gradientRatio").val();
+
+			if (tpType!=0 && tpName!=0) {
+				taskTurnpoints[tpNum]= {
+					'wType':tpType,
+					'tpname':tpName,
+					'shapeType':shapeType,
+					'radius':radius,
+					'angle':angle,
+					'angle2':angle2,
+					'shapeType2':shapeType2,
+					'gradientRatio':gradientRatio
+				};
+				tpNum++;
+			}
+
+		}
+
+		taskInfo=[];
+		taskInfo['taskType'] =$("#taskType").val(); // 'race';
+		taskInfo['taskStatus']=$("#taskStatus").val();
+		taskInfo['windowOpen']=timeProccess($("#windowOpen").val());
+		taskInfo['windowClose']=timeProccess($("#windowClose").val());
+		taskInfo['startOpen']=timeProccess($("#startOpen").val());
+		taskInfo['landingDeadline']=timeProccess($("#landingDeadline").val());
+		taskInfo['minDistance']=$("#minDistance").val();
+
+
+
+		taskDefinitionStr="LIVE "+userID+" "+userPin+" task "+taskID+" "+taskPass+ " "+taskInfo['minDistance']+" ";
+
+		taskDefinitionStr+= getTaskDefinition(taskTurnpoints,taskInfo);
+		$("#taskDefinitionStr").val(taskDefinitionStr);
+
+		copyToClipboard(document.getElementById("taskDefinitionStr"));
+
+		$("#resultDiv2").html("Created Task Definition and copied it into the clipboard").fadeTo(2000, 500).slideUp(500);
+	}
+
+function timeProccess(atime) {
+	var goodTime=atime.substr(0,2)+atime.substr(3,2);
+	return goodTime;
+}
+
+function addTurnpoints() {
+	$(".tpTr").show();
+ 	$("#AddTPbutton").hide();
+}
+
+function showPg() {
+	$(".tpAngle").hide();
+	//$(".tpGradient").show();
+}
+
+function showGliding() {
+	// $(".tpAngle").show();
+	$(".tpGradient").hide();
+}
+
+function showOther() {
+	$(".tpAngle").hide();
+	$(".tpGradient").hide();
+}
+
+function selectTurnpoint(idx) {
+	var sl=$('#compTp'+idx);
+
+	/*
+	tp_id= sl.options[sl.selectedIndex].value ;    // Which menu item is selected
+	if (tp_id==-1) return;
+
+	var tpNameField=$('#tp'+idx+'_name');
+	var tpLatField=$('#tp'+idx+'_lat');
+	var tpLonField=$('#tp'+idx+'_lon');
+	var tpNameTpField=$('#tp'+idx+'_tpname');
+
+	tpNameField.value=tpName[tp_id];
+	tpLatField.value=tpLat[tp_id];
+	tpLonField.value=tpLon[tp_id];
+	tpNameTpField.value=tpNameTp[tp_id];
+	*/
+}
+
+function viewTypes(idx) {
+
+	var obj=$("#tp"+idx+"_shapeType");
+	var val=obj.val();
+
+	$("#tp"+idx+"_radiusText").hide();
+	$("#tp"+idx+"_angle2").parent().hide();
+	$("#tp"+idx+"_shapeType2").hide();
+
+	if (val==0){ // cylinder
+		$("#tp"+idx+"_gradientRatio").parent().hide();
+		$("#tp"+idx+"_angle").parent().hide();
+	} else if (val==1){ //cone
+		$("#tp"+idx+"_gradientRatio").parent().show();
+		$("#tp"+idx+"_angle").parent().hide();
+	} else if (val==2){ // line
+		$("#tp"+idx+"_gradientRatio").parent().hide();
+		$("#tp"+idx+"_angle").parent().hide();
+		$("#tp"+idx+"_radiusText").show();
+	} else if (val==3){ // wedge
+		$("#tp"+idx+"_gradientRatio").parent().hide();
+		$("#tp"+idx+"_angle").parent().show();
+		viewSubTypes3(idx);
+	}
+}
+
+function viewSubTypes3(idx) {
+
+	var val0=$("#tp"+idx+"_shapeType").val();
+	if (val0!=3) {
+		$("#tp"+idx+"_shapeType2").hide();
+		return;
+	}
+
+	$("#tp"+idx+"_shapeType2").show();
+
+	var val=$("#tp"+idx+"_shapeType2").val();
+
+	if (val==3){ // fixed value
+		$("#tp"+idx+"_angle2").parent().show();
+	} else {
+		$("#tp"+idx+"_angle2").parent().hide();
+	}
+}
+
+function showRows() {
+
+	realTpNum=taskTurnpoints.length;
+	showAddButton=0;
+	var html="";
+
+	for(var i=0; i<maxTpnum;i++) {
+
+		var style="";
+		if (realTpNum< maxTpnum0 && i>maxTpnum0) {
+			style=" style='display:none;' ";
+			showAddButton=1;
+		}
+
+		html+=" \
+<tr id='row_"+i+"' class='tpTr' "+style+" > \
+	<td align='right' valign='top'> \
+		<strong>"+(i+1)+"</strong> \
+	</td> \
+	<td align='left' valign='middle'> \
+		";
+
+/*
+        var type=waypoints[i]['wType'] ;
+		var sel_0,sel_1,sel_2,sel_3,sel_4,sel_5='';
+
+		if( type=='TAKEOFF' ) 		sel_1='selected';
+		else if( type=='START' ) 	sel_2='selected';
+		else if( type=='WAYPT' )   	sel_3='selected';
+		else if( type=='ES' ) 	 	sel_4='selected';
+		else if( type=='GOAL' ) 	sel_5='selected';
+		else  sel_0='selected';
+
+		if (waypoints[i]['gradientRatio']>0) {
+			waypoints[i]['shapeType'] = 1; // cone;
+        }
+*/
+
+		html+="\n" +
+		"<select name='tp"+i+"_type' id='tp"+i+"_type'>\
+		<option value='0'>- not used -</option>\n";
+
+		if ( taskCat<=4)  html+="<option>TAKEOFF</option>\n";
+		html+="<option>START</option>\n";
+		html+="<option>WAYPT</option>\n";
+		if ( taskCat==1)  html+="<option>ES</option>\n";
+
+		html+="<option>GOAL</option> \
+		</select> \
+	</td> \
+	<td  class='' align='left' valign='middle'> \
+		<select class='tpselect' onChange='javascript:selectTurnpoint("+i+");' name='compTp"+i+"' id='compTp"+i+"'> \
+			<option value='0'>Select Turnpoint from the list</option> \
+		</select> \
+	</td>\
+	<td class='tpType' align='left' valign='middle'> \
+		<select onchange='javascript:viewTypes("+i+");' name='tp"+i+"_shapeType'  id='tp"+i+"_shapeType' > \
+			<option value='0'>Cylinder</option> \
+			<option value='1'>Cone</option> \
+			<option value='2'>Line</option> \
+			<option value='3'>Wedge</option> \
+		</select> \
+		<div class='tpGradient' style='display:none;'> \
+			<span class='label label-warning'>Gradient</span> \
+			<input name='tp"+i+"_gradientRatio'  id='tp"+i+"_gradientRatio' type='text' size='3' value=''> \
+		</div> \
+		<select onchange='javascript:viewSubTypes3("+i+");' name='tp"+i+"_shapeType2'  id='tp"+i+"_shapeType2' > \
+			<option value='0'>Symmetrical</option> \
+			<option value='1'>To Previous Point</option> \
+			<option value='2'>To Next Point</option> \
+			<option value='3'>Fixed Value</option> \
+		</select> \
+		<div class='tpAngle'> \
+			<span class='label label-warning'>Angle</span> \
+			<input name='tp"+i+"_angle' id='tp"+i+"_angle' type='text' size='3' value='' > \
+		</div> \
+		<div class='tpAngle'> \
+			<span class='label label-warning'>A12 Direction</span> \
+			<input name='tp"+i+"_angle2' id='tp"+i+"_angle2' type='text' size='3' value='' > \
+		</div> \
+	</td> \
+	<td align='left' valign='middle'> \
+		<input class='tpRadius' id='tp"+i+"_radius' type='text' size='5' value='' >\
+		<span class='label label-warning' style='display:none;' id='tp"+i+"_radiusText'>Each Side Width</span>\
+		</td> \
+		</tr>";
+
+		}
+
+	if (showAddButton) {
+		html+="<tr>\
+		<td colspan='5' align='left' valign='middle'> \
+			<a href='javascript:addTurnpoints();' class='btn btn-warning btn-sm' id='AddTPbutton'>Add more Turnpoints</a>\
+		</td>\
+		</tr>";
+	 	}
+
+		$('#headerRow').after(html);
+
+	}
+
+	function toogleStartGates() {
+		$(".moreStarts").toggle();
+		$(".lessStarts").toggle();
+	}
+
+	function copyToClipboard(elem) {
+		// create hidden text element, if it doesn't already exist
+		var targetId = "_hiddenCopyText_";
+		var isInput = elem.tagName === "INPUT" || elem.tagName === "TEXTAREA";
+		var origSelectionStart, origSelectionEnd;
+		if (isInput) {
+			// can just use the original source element for the selection and copy
+			target = elem;
+			origSelectionStart = elem.selectionStart;
+			origSelectionEnd = elem.selectionEnd;
+		} else {
+			// must use a temporary form element for the selection and copy
+			target = document.getElementById(targetId);
+			if (!target) {
+				var target = document.createElement("textarea");
+				target.style.position = "absolute";
+				target.style.left = "-9999px";
+				target.style.top = "0";
+				target.id = targetId;
+				document.body.appendChild(target);
+			}
+			target.textContent = elem.textContent;
+		}
+		// select the content
+		var currentFocus = document.activeElement;
+		target.focus();
+		target.setSelectionRange(0, target.value.length);
+
+		// copy the selection
+		var succeed;
+		try {
+			succeed = document.execCommand("copy");
+		} catch(e) {
+			succeed = false;
+		}
+		// restore original focus
+		if (currentFocus && typeof currentFocus.focus === "function") {
+			currentFocus.focus();
+		}
+
+		if (isInput) {
+			// restore prior selection
+			elem.setSelectionRange(origSelectionStart, origSelectionEnd);
+		} else {
+			// clear temporary content
+			target.textContent = "";
+		}
+		return succeed;
+	}
+
+</script>
+
+<style type="text/css">
+
+.wptTable, .wptTable td , input  ,select {
+	font-size:14px;
+}
+
+.taskAdminTable td {
+	padding-left:5px;
+}
+
+#mainTable {
+	background-color: #ffffff;
+}
+#mainForm {
+	/*width:800px;*/
+}
+
+body {background: #ffffff;}
+
+.moreStarts{ display:none; }
+
+.buttonDiv {
+	text-align: center;
+}
+.buttonDiv * {
+	margin-top: 10px;
+}
+
+#taskID {
+	background-color: #FFA466;
+}
+
+</style>
+
+
+<div class="container" id="mainForm">
+	<div class="panel panel-primary">
+		<div class="panel-heading">
+			<div align="left" id="taskName">Task 2 / 2016-01-27</div>
+		</div>
+		<div class="panel-body">
+			<div class="row">
+				<div class="col-xs-6 col-md-3">Task ID</div>
+				<div class="col-xs-6 col-md-3"><input type="text" size="7" id="taskID" name="taskID" value="" autocomplete="off" style="background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAASCAYAAABSO15qAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3QsPDigO/bwqsQAAAfNJREFUOMvNkz1ok2EQx3/39umHmpZWMUVaUEEUpWlQ0QyiCDooFhwcFN2lgqhTEMKTDwsZCw4SQQNOLh20KBgQRZ0kIK2LlBaqtNKhfkRqbHnfvOEc0kCbD0Enb/vD8bu7/93BfxfRaLTfWnuoqq21EWttqFm+s1ZYa692dHRMiUgWEEBEJCMiE/F4PN0IYGq0JyKbgJC19ryq+iKyH0BVZxoBpFbH4/HXInIUmFbVsojsBV6mUqkTTQGxWGy74zhdpVJpxRizw3GcnIi0rFYuA+dUdVFEAr7vf0mn05PrRjDG3ASG29vb6ytUQI9FKs0aY+4Bl2tNdP51a7Lq/kFV3aqqP0QkaIwZ/yvA2kgkEs9F5CQEiAydYbC/i6VPeR7l3uM1ALTU3MEFEYmKCJFLNzg1sA186NsVZl/nAvnp738+JGA34EOQPTs3UP6YY/T2KC8WymwJHaYHgABDw9c5G+6pB4yMjNzyPC8My/zyoKVvkEj4OAO9lUZbAdjI5t5ugp2tzY1JJpOavv9M55ZcVd9VV1XVndE3s8u6Plxtsr42jp0+QvfPCTJ3xvkKeHNT5J88IJsdY74M3yafksncrfuF6kvw9tUHDlyMcOVaBFbmeTj2jqIHxUIJF3A/z7K4WKhfY3WEaieBnjaKhWLTcX8DATq/EhizV6kAAAAASUVORK5CYII=&quot;); background-attachment: scroll; background-position: 100% 50%; background-repeat: no-repeat;"></div>
+				<div class="col-xs-6 col-md-3">Task Password</div>
+				<div class="col-xs-6 col-md-3"><input type="text" size="7" id="taskPass" name="taskPass" value=""></div>
+			</div>
+			<div class="row">
+				<div class="col-xs-6 col-md-3">UserID</div>
+				<div class="col-xs-6 col-md-3"><input type="text" size="7" id="userID" name="userID" value="" autocomplete="off" style="background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAASCAYAAABSO15qAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3QsPDigO/bwqsQAAAfNJREFUOMvNkz1ok2EQx3/39umHmpZWMUVaUEEUpWlQ0QyiCDooFhwcFN2lgqhTEMKTDwsZCw4SQQNOLh20KBgQRZ0kIK2LlBaqtNKhfkRqbHnfvOEc0kCbD0Enb/vD8bu7/93BfxfRaLTfWnuoqq21EWttqFm+s1ZYa692dHRMiUgWEEBEJCMiE/F4PN0IYGq0JyKbgJC19ryq+iKyH0BVZxoBpFbH4/HXInIUmFbVsojsBV6mUqkTTQGxWGy74zhdpVJpxRizw3GcnIi0rFYuA+dUdVFEAr7vf0mn05PrRjDG3ASG29vb6ytUQI9FKs0aY+4Bl2tNdP51a7Lq/kFV3aqqP0QkaIwZ/yvA2kgkEs9F5CQEiAydYbC/i6VPeR7l3uM1ALTU3MEFEYmKCJFLNzg1sA186NsVZl/nAvnp738+JGA34EOQPTs3UP6YY/T2KC8WymwJHaYHgABDw9c5G+6pB4yMjNzyPC8My/zyoKVvkEj4OAO9lUZbAdjI5t5ugp2tzY1JJpOavv9M55ZcVd9VV1XVndE3s8u6Plxtsr42jp0+QvfPCTJ3xvkKeHNT5J88IJsdY74M3yafksncrfuF6kvw9tUHDlyMcOVaBFbmeTj2jqIHxUIJF3A/z7K4WKhfY3WEaieBnjaKhWLTcX8DATq/EhizV6kAAAAASUVORK5CYII=&quot;); background-attachment: scroll; background-position: 100% 50%; background-repeat: no-repeat;"></div>
+				<div class="col-xs-6 col-md-3">User Pin</div>
+				<div class="col-xs-6 col-md-3"><input type="text" size="7" id="userPin" name="userPin" value="" autocomplete="off" style="background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAASCAYAAABSO15qAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3QsPDigO/bwqsQAAAfNJREFUOMvNkz1ok2EQx3/39umHmpZWMUVaUEEUpWlQ0QyiCDooFhwcFN2lgqhTEMKTDwsZCw4SQQNOLh20KBgQRZ0kIK2LlBaqtNKhfkRqbHnfvOEc0kCbD0Enb/vD8bu7/93BfxfRaLTfWnuoqq21EWttqFm+s1ZYa692dHRMiUgWEEBEJCMiE/F4PN0IYGq0JyKbgJC19ryq+iKyH0BVZxoBpFbH4/HXInIUmFbVsojsBV6mUqkTTQGxWGy74zhdpVJpxRizw3GcnIi0rFYuA+dUdVFEAr7vf0mn05PrRjDG3ASG29vb6ytUQI9FKs0aY+4Bl2tNdP51a7Lq/kFV3aqqP0QkaIwZ/yvA2kgkEs9F5CQEiAydYbC/i6VPeR7l3uM1ALTU3MEFEYmKCJFLNzg1sA186NsVZl/nAvnp738+JGA34EOQPTs3UP6YY/T2KC8WymwJHaYHgABDw9c5G+6pB4yMjNzyPC8My/zyoKVvkEj4OAO9lUZbAdjI5t5ugp2tzY1JJpOavv9M55ZcVd9VV1XVndE3s8u6Plxtsr42jp0+QvfPCTJ3xvkKeHNT5J88IJsdY74M3yafksncrfuF6kvw9tUHDlyMcOVaBFbmeTj2jqIHxUIJF3A/z7K4WKhfY3WEaieBnjaKhWLTcX8DATq/EhizV6kAAAAASUVORK5CYII=&quot;); background-attachment: scroll; background-position: 100% 50%; background-repeat: no-repeat;"></div>
+			</div>
+
+
+
+			<div class="buttonDiv">
+				<a class="btn btn-lg btn-primary" href="javascript:storeValues();">1. Store Values (check TaskID !!!)</a> <br>
+
+				<a class="btn btn-lg  btn-warning" href="javascript:getTaskDetails();">2. Get Task Waypoints (only once)</a>
+			</div>
+
+			<div id="resultDiv" class="alert alert-success" style="display:none;"></div>
+
+		</div>
+	</div>
+
+
+	<div class="panel panel-primary">
+		<div class="panel-heading">
+			<div align="left">Task Definition</div>
+		</div>
+		<div class="panel-body">
+
+		<div class="row">
+			<div class="col-md-12">
+				<textarea style="width:100%; height: auto;" id="taskDefinitionStr"></textarea>
+
+				<div class="buttonDiv">
+					<a class="btn btn-lg btn-primary" href="javascript:createTaskDefinition();">3. Create Task Definition</a><br>
+					<a id="sendSMSbutton" class="btn btn-lg btn-danger" href="sms:+306972098522">4. SEND SMS TO +306972098522</a>
+				</div>
+			</div>
+		</div>
+		<br>
+		<div id="resultDiv2" class="alert alert-success" style="display:none;"></div>
+		</div>
+	</div>
+
+	<div class="panel panel-primary">
+		<div class="panel-heading">
+			<div align="left">Task Type &amp; Times</div>
+		</div>
+		<div class="panel-body">
+			<table align="center" class="mainText" cellspacing="0" cellpadding="5">
+		<tbody><tr class="green0">
+			<td align="right" valign="top"><strong>Type of Task</strong></td>
+			<td align="left" valign="top">
+				<strong>
+					<select name="taskType" type="text" id="taskType">
+						<option value="Race to Goal">Race to Goal</option>
+						<option value="Elapsed Time" $sel="">Elapsed Time</option>
+						<option value="Open Distance">Open Distance</option>
+					</select>
+				</strong>
+			</td>
+		</tr>
+		<tr class="green0">
+			<td align="right" valign="top"><strong>Task Status</strong></td>
+			<td align="left" valign="top"><strong>
+					<select name="taskStatus" type="text" id="taskStatus">
+						<option value="0">Active</option>
+						<option value="1">Provisional</option>
+						<option value="2">Canceled</option>
+						<option value="4">Stopped</option>
+					</select>
+			</strong></td>
+		</tr>
+		<tr class="green0">
+			<td align="right" valign="top" colspan="2">
+				<div class="alert alert-warning">
+					Enter All Times in hh:mm and in Local Timezone
+				</div>
+			</td>
+		</tr>
+		<tr class="green0">
+			<td align="right" valign="top"><strong>Window Open</strong></td>
+			<td align="left" valign="top"><input name="windowOpen" type="text" id="windowOpen" value="12:00" size="10" maxlength="10">
+			</td>
+
+		</tr>
+		<tr class="green0">
+			<td align="right" valign="top"><strong>Window Close</strong></td>
+			<td align="left" valign="top"><input name="windowClose" type="text" id="windowClose" value="15:00" size="10" maxlength="10">
+			</td>
+		</tr>
+
+		<tr class="green0">
+			<td align="right" valign="top"><strong>Start Gate Open</strong></td>
+			<td align="left" valign="top">
+				<input name="startOpen" type="text" id="startOpen" value="13:00" size="10" maxlength="10">
+				</td>
+		</tr>
+		<tr class="lessStarts">
+			<td colspan="2" align="left" valign="top">
+				<a id="buttonMoreStarts" class="btn btn-primary" href="javascript:toogleStartGates();">More Start gates ?</a>
+			</td>
+		</tr>
+		<tr class="moreStarts">
+			<td colspan="2" align="left" valign="top">
+				<a id="buttonMoreStarts" class="btn btn-primary" href="javascript:toogleStartGates();">Less Start gates ?</a>
+
+				<div class="alert alert-warning">
+					Enter All Times in hh:mm and in Local Timezone
+					Leave as 00:00 or blank if no multiple start gates
+				</div>
+
+			</td>
+		</tr>
+		<tr class="moreStarts">
+			<td align="right" valign="top"><strong>Start Gate Open #2</strong></td>
+			<td align="left" valign="top">
+				<input name="startOpen2" type="text" id="startOpen2" value="" size="10" maxlength="10">
+			</td>
+		</tr>
+		<tr class="moreStarts">
+			<td align="right" valign="top"><strong>Start Gate Open #3</strong></td>
+			<td align="left" valign="top">
+				<input name="startOpen3" type="text" id="startOpen3" value="" size="10" maxlength="10">
+			</td>
+		</tr>
+		<tr class="moreStarts">
+			<td align="right" valign="top"><strong>Start Gate Open #4</strong></td>
+			<td align="left" valign="top">
+				<input name="startOpen4" type="text" id="startOpen4" value="" size="10" maxlength="10">
+			</td>
+		</tr>
+		<tr class="moreStarts">
+			<td align="right" valign="top"><strong>Start Gate Open #5</strong></td>
+			<td align="left" valign="top">
+				<input name="startOpen5" type="text" id="startOpen5" value="" size="10" maxlength="10">
+			</td>
+		</tr>
+		<tr class="moreStarts">
+			<td align="right" valign="top"><strong>Start Gate Open #6</strong></td>
+			<td align="left" valign="top">
+				<input name="startOpen6" type="text" id="startOpen6" value="" size="10" maxlength="10">
+			</td>
+		</tr>
+		<tr class="green0">
+			<td align="right" valign="top"><strong>Landing Deadline</strong></td>
+			<td align="left" valign="top"><input name="landingDeadline" type="text" id="landingDeadline" value="20:00" size="10" maxlength="10">
+			</td>
+		</tr>
+		<tr>
+			<td align="right" valign="top"><strong>Min Distance (in Km)</strong></td>
+			<td align="left" valign="top"><strong>
+					<input name="minDistance" type="text" id="minDistance" value="5" size="10" maxlength="10">
+				</strong></td>
+		</tr>
+	</tbody></table>
+		</div>
+	</div>
+
+
+	<div class="panel panel-primary">
+		<div class="panel-heading">
+			<div align="left">Task Tunrpoints</div>
+		</div>
+		<div class="panel-body">
+			<table id="mainTable" width="100%" align="center" class="mainText taskAdminTable" cellspacing="0">
+	<tbody><tr id="headerRow" style="background-color: rgb(250, 250, 255);">
+	  	<th>#</th>
+	  	<th>Type</th>
+		<th>Turnpoint</th>
+	  	<th class="tpType">Type</th>
+		<th>Radius (in m)</th>
+	</tr> <tr id="row_0" class="tpTr" style="background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>1</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp0_type" id="tp0_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(0);" name="compTp0" id="compTp0"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(0);" name="tp0_shapeType" id="tp0_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp0_gradientRatio" id="tp0_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(0);" name="tp0_shapeType2" id="tp0_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp0_angle" id="tp0_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp0_angle2" id="tp0_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp0_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp0_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_1" class="tpTr" style="background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>2</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp1_type" id="tp1_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(1);" name="compTp1" id="compTp1"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(1);" name="tp1_shapeType" id="tp1_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp1_gradientRatio" id="tp1_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(1);" name="tp1_shapeType2" id="tp1_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp1_angle" id="tp1_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp1_angle2" id="tp1_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp1_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp1_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_2" class="tpTr" style="background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>3</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp2_type" id="tp2_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(2);" name="compTp2" id="compTp2"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(2);" name="tp2_shapeType" id="tp2_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp2_gradientRatio" id="tp2_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(2);" name="tp2_shapeType2" id="tp2_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp2_angle" id="tp2_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp2_angle2" id="tp2_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp2_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp2_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_3" class="tpTr" style="background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>4</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp3_type" id="tp3_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(3);" name="compTp3" id="compTp3"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(3);" name="tp3_shapeType" id="tp3_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp3_gradientRatio" id="tp3_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(3);" name="tp3_shapeType2" id="tp3_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp3_angle" id="tp3_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp3_angle2" id="tp3_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp3_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp3_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_4" class="tpTr" style="background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>5</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp4_type" id="tp4_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(4);" name="compTp4" id="compTp4"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(4);" name="tp4_shapeType" id="tp4_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp4_gradientRatio" id="tp4_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(4);" name="tp4_shapeType2" id="tp4_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp4_angle" id="tp4_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp4_angle2" id="tp4_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp4_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp4_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_5" class="tpTr" style="background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>6</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp5_type" id="tp5_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(5);" name="compTp5" id="compTp5"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(5);" name="tp5_shapeType" id="tp5_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp5_gradientRatio" id="tp5_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(5);" name="tp5_shapeType2" id="tp5_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp5_angle" id="tp5_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp5_angle2" id="tp5_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp5_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp5_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_6" class="tpTr" style="background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>7</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp6_type" id="tp6_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(6);" name="compTp6" id="compTp6"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(6);" name="tp6_shapeType" id="tp6_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp6_gradientRatio" id="tp6_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(6);" name="tp6_shapeType2" id="tp6_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp6_angle" id="tp6_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp6_angle2" id="tp6_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp6_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp6_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_7" class="tpTr" style="background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>8</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp7_type" id="tp7_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(7);" name="compTp7" id="compTp7"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(7);" name="tp7_shapeType" id="tp7_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp7_gradientRatio" id="tp7_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(7);" name="tp7_shapeType2" id="tp7_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp7_angle" id="tp7_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp7_angle2" id="tp7_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp7_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp7_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_8" class="tpTr" style="background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>9</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp8_type" id="tp8_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(8);" name="compTp8" id="compTp8"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(8);" name="tp8_shapeType" id="tp8_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp8_gradientRatio" id="tp8_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(8);" name="tp8_shapeType2" id="tp8_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp8_angle" id="tp8_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp8_angle2" id="tp8_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp8_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp8_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_9" class="tpTr" style="background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>10</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp9_type" id="tp9_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(9);" name="compTp9" id="compTp9"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(9);" name="tp9_shapeType" id="tp9_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp9_gradientRatio" id="tp9_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(9);" name="tp9_shapeType2" id="tp9_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp9_angle" id="tp9_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp9_angle2" id="tp9_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp9_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp9_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_10" class="tpTr" style="display: none; background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>11</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp10_type" id="tp10_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(10);" name="compTp10" id="compTp10"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(10);" name="tp10_shapeType" id="tp10_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp10_gradientRatio" id="tp10_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(10);" name="tp10_shapeType2" id="tp10_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp10_angle" id="tp10_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp10_angle2" id="tp10_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp10_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp10_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_11" class="tpTr" style="display: none; background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>12</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp11_type" id="tp11_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(11);" name="compTp11" id="compTp11"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(11);" name="tp11_shapeType" id="tp11_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp11_gradientRatio" id="tp11_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(11);" name="tp11_shapeType2" id="tp11_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp11_angle" id="tp11_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp11_angle2" id="tp11_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp11_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp11_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_12" class="tpTr" style="display: none; background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>13</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp12_type" id="tp12_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(12);" name="compTp12" id="compTp12"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(12);" name="tp12_shapeType" id="tp12_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp12_gradientRatio" id="tp12_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(12);" name="tp12_shapeType2" id="tp12_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp12_angle" id="tp12_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp12_angle2" id="tp12_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp12_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp12_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_13" class="tpTr" style="display: none; background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>14</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp13_type" id="tp13_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(13);" name="compTp13" id="compTp13"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(13);" name="tp13_shapeType" id="tp13_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp13_gradientRatio" id="tp13_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(13);" name="tp13_shapeType2" id="tp13_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp13_angle" id="tp13_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp13_angle2" id="tp13_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp13_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp13_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_14" class="tpTr" style="display: none; background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>15</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp14_type" id="tp14_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(14);" name="compTp14" id="compTp14"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(14);" name="tp14_shapeType" id="tp14_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp14_gradientRatio" id="tp14_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(14);" name="tp14_shapeType2" id="tp14_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp14_angle" id="tp14_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp14_angle2" id="tp14_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp14_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp14_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_15" class="tpTr" style="display: none; background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>16</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp15_type" id="tp15_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(15);" name="compTp15" id="compTp15"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(15);" name="tp15_shapeType" id="tp15_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp15_gradientRatio" id="tp15_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(15);" name="tp15_shapeType2" id="tp15_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp15_angle" id="tp15_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp15_angle2" id="tp15_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp15_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp15_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_16" class="tpTr" style="display: none; background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>17</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp16_type" id="tp16_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(16);" name="compTp16" id="compTp16"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(16);" name="tp16_shapeType" id="tp16_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp16_gradientRatio" id="tp16_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(16);" name="tp16_shapeType2" id="tp16_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp16_angle" id="tp16_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp16_angle2" id="tp16_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp16_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp16_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_17" class="tpTr" style="display: none; background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>18</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp17_type" id="tp17_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(17);" name="compTp17" id="compTp17"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(17);" name="tp17_shapeType" id="tp17_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp17_gradientRatio" id="tp17_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(17);" name="tp17_shapeType2" id="tp17_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp17_angle" id="tp17_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp17_angle2" id="tp17_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp17_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp17_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_18" class="tpTr" style="display: none; background-color: rgb(255, 255, 255);"> 	<td align="right" valign="top"> 		<strong>19</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp18_type" id="tp18_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(18);" name="compTp18" id="compTp18"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(18);" name="tp18_shapeType" id="tp18_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp18_gradientRatio" id="tp18_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(18);" name="tp18_shapeType2" id="tp18_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp18_angle" id="tp18_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp18_angle2" id="tp18_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp18_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp18_radiusText">Each Side Width</span>		</td> 		</tr> <tr id="row_19" class="tpTr" style="display: none; background-color: rgb(250, 250, 255);"> 	<td align="right" valign="top"> 		<strong>20</strong> 	</td> 	<td align="left" valign="middle"> 		
+<select name="tp19_type" id="tp19_type">		<option value="0">- not used -</option>
+<option>TAKEOFF</option>
+<option>START</option>
+<option>WAYPT</option>
+<option>ES</option>
+<option>GOAL</option> 		</select> 	</td> 	<td class="" align="left" valign="middle"> 		<select class="tpselect" onchange="javascript:selectTurnpoint(19);" name="compTp19" id="compTp19"><option value="0">Select Turnpoint</option>
+<option value="L01045">HQ STMAREIN</option>
+<option value="L02045">LP WOLFSBERG</option>
+<option value="S01141">WALDRAST</option>
+<option value="S02117">GODING</option>
+<option value="W01111">GH WOLFGRUBER</option>
+<option value="W02141">SCHOBERKOGEL</option>
+<option value="W03103">JAGER AM ECK</option>
+<option value="W04111">KOLLMANBAUER</option>
+<option value="W05140">BURGSTALL</option>
+<option value="W06183">HIPFLLIFT</option>
+<option value="W07196">KORALMSCHU</option>
+<option value="W08207">KRAKABERG</option>
+<option value="W09083">GH PUCHER</option>
+<option value="W10087">HARTNEIDST</option>
+<option value="W11106">FRIESACHGR</option>
+<option value="W12141">BRANDLALM</option>
+<option value="W13093">WEISSENBER</option>
+<option value="W14134">SOBOTH SENDER</option>
+<option value="W15152">HUEHNERKOG</option>
+<option value="W16046">ZOLLHUETTE</option>
+<option value="W17066">RADLPASS</option>
+<option value="W18064">ALTENBACH</option>
+<option value="W19089">KOEMMEL</option>
+<option value="W20081">RUDEN SENDER</option>
+<option value="W21115">DIEX</option>
+<option value="W22041">ST PAUL</option>
+<option value="W23043">FRAMRACH</option>
+<option value="W24042">ST ANDR?</option>
+<option value="W25048">ST MICHAEL</option>
+<option value="W26197">SAUALPE</option>
+<option value="W27044">McDONALDs</option>
+<option value="W28090">KLEINHENNE</option>
+<option value="W29077">SONNENTURM</option>
+<option value="W30070">BAD ST LEONHARD</option>
+<option value="W31147">SCHULTERKO</option>
+<option value="W32168">KLIPPITZT?RL</option>
+</select> 	</td>	<td class="tpType" align="left" valign="middle"> 		<select onchange="javascript:viewTypes(19);" name="tp19_shapeType" id="tp19_shapeType"> 			<option value="0">Cylinder</option> 			<option value="1">Cone</option> 			<option value="2">Line</option> 			<option value="3">Wedge</option> 		</select> 		<div class="tpGradient" style="display:none;"> 			<span class="label label-warning">Gradient</span> 			<input name="tp19_gradientRatio" id="tp19_gradientRatio" type="text" size="3" value=""> 		</div> 		<select onchange="javascript:viewSubTypes3(19);" name="tp19_shapeType2" id="tp19_shapeType2" style="display: none;"> 			<option value="0">Symmetrical</option> 			<option value="1">To Previous Point</option> 			<option value="2">To Next Point</option> 			<option value="3">Fixed Value</option> 		</select> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">Angle</span> 			<input name="tp19_angle" id="tp19_angle" type="text" size="3" value=""> 		</div> 		<div class="tpAngle" style="display: none;"> 			<span class="label label-warning">A12 Direction</span> 			<input name="tp19_angle2" id="tp19_angle2" type="text" size="3" value=""> 		</div> 	</td> 	<td align="left" valign="middle"> 		<input class="tpRadius" id="tp19_radius" type="text" size="5" value="">		<span class="label label-warning" style="display:none;" id="tp19_radiusText">Each Side Width</span>		</td> 		</tr><tr style="background-color: rgb(255, 255, 255);">		<td colspan="5" align="left" valign="middle"> 			<a href="javascript:addTurnpoints();" class="btn btn-warning btn-sm" id="AddTPbutton">Add more Turnpoints</a>		</td>		</tr>
+</tbody></table>
+		</div>
+	</div>
+
+</div>
+
+
+<script>
+	/**
+	 @license
+	 sprintf.js from the php.js project - https://github.com/kvz/phpjs
+	 Directly from https://github.com/kvz/phpjs/blob/master/functions/strings/sprintf.js
+	 php.js is copyright 2012 Kevin van Zonneveld.
+	 */
+
+	function sprintf () {
+		// http://kevin.vanzonneveld.net
+		// +   original by: Ash Searle (http://hexmen.com/blog/)
+		// + namespaced by: Michael White (http://getsprink.com)
+		// +    tweaked by: Jack
+		// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+		// +      input by: Paulo Freitas
+		// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+		// +      input by: Brett Zamir (http://brett-zamir.me)
+		// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+		// +   improved by: Dj
+		// +   improved by: Allidylls
+		// *     example 1: sprintf("%01.2f", 123.1);
+		// *     returns 1: 123.10
+		// *     example 2: sprintf("[%10s]", 'monkey');
+		// *     returns 2: '[    monkey]'
+		// *     example 3: sprintf("[%'#10s]", 'monkey');
+		// *     returns 3: '[####monkey]'
+		// *     example 4: sprintf("%d", 123456789012345);
+		// *     returns 4: '123456789012345'
+		var regex = /%%|%(\d+\$)?([-+\'#0 ]*)(\*\d+\$|\*|\d+)?(\.(\*\d+\$|\*|\d+))?([scboxXuideEfFgG])/g;
+		var a = arguments,
+			i = 0,
+			format = a[i++];
+
+		// pad()
+		var pad = function (str, len, chr, leftJustify) {
+			if (!chr) {
+				chr = ' ';
+			}
+			var padding = (str.length >= len) ? '' : Array(1 + len - str.length >>> 0).join(chr);
+			return leftJustify ? str + padding : padding + str;
+		};
+
+		// justify()
+		var justify = function (value, prefix, leftJustify, minWidth, zeroPad, customPadChar) {
+			var diff = minWidth - value.length;
+			if (diff > 0) {
+				if (leftJustify || !zeroPad) {
+					value = pad(value, minWidth, customPadChar, leftJustify);
+				} else {
+					value = value.slice(0, prefix.length) + pad('', diff, '0', true) + value.slice(prefix.length);
+				}
+			}
+			return value;
+		};
+
+		// formatBaseX()
+		var formatBaseX = function (value, base, prefix, leftJustify, minWidth, precision, zeroPad) {
+			// Note: casts negative numbers to positive ones
+			var number = value >>> 0;
+			prefix = prefix && number && {
+				'2': '0b',
+				'8': '0',
+				'16': '0x'
+			}[base] || '';
+			value = prefix + pad(number.toString(base), precision || 0, '0', false);
+			return justify(value, prefix, leftJustify, minWidth, zeroPad);
+		};
+
+		// formatString()
+		var formatString = function (value, leftJustify, minWidth, precision, zeroPad, customPadChar) {
+			if (precision != null) {
+				value = value.slice(0, precision);
+			}
+			return justify(value, '', leftJustify, minWidth, zeroPad, customPadChar);
+		};
+
+		// doFormat()
+		var doFormat = function (substring, valueIndex, flags, minWidth, _, precision, type) {
+			var number;
+			var prefix;
+			var method;
+			var textTransform;
+			var value;
+
+			if (substring == '%%') {
+				return '%';
+			}
+
+			// parse flags
+			var leftJustify = false,
+				positivePrefix = '',
+				zeroPad = false,
+				prefixBaseX = false,
+				customPadChar = ' ';
+			var flagsl = flags.length;
+			for (var j = 0; flags && j < flagsl; j++) {
+				switch (flags.charAt(j)) {
+					case ' ':
+						positivePrefix = ' ';
+						break;
+					case '+':
+						positivePrefix = '+';
+						break;
+					case '-':
+						leftJustify = true;
+						break;
+					case "'":
+						customPadChar = flags.charAt(j + 1);
+						break;
+					case '0':
+						zeroPad = true;
+						break;
+					case '#':
+						prefixBaseX = true;
+						break;
+				}
+			}
+
+			// parameters may be null, undefined, empty-string or real valued
+			// we want to ignore null, undefined and empty-string values
+			if (!minWidth) {
+				minWidth = 0;
+			} else if (minWidth == '*') {
+				minWidth = +a[i++];
+			} else if (minWidth.charAt(0) == '*') {
+				minWidth = +a[minWidth.slice(1, -1)];
+			} else {
+				minWidth = +minWidth;
+			}
+
+			// Note: undocumented perl feature:
+			if (minWidth < 0) {
+				minWidth = -minWidth;
+				leftJustify = true;
+			}
+
+			if (!isFinite(minWidth)) {
+				throw new Error('sprintf: (minimum-)width must be finite');
+			}
+
+			if (!precision) {
+				precision = 'fFeE'.indexOf(type) > -1 ? 6 : (type == 'd') ? 0 : undefined;
+			} else if (precision == '*') {
+				precision = +a[i++];
+			} else if (precision.charAt(0) == '*') {
+				precision = +a[precision.slice(1, -1)];
+			} else {
+				precision = +precision;
+			}
+
+			// grab value using valueIndex if required?
+			value = valueIndex ? a[valueIndex.slice(0, -1)] : a[i++];
+
+			switch (type) {
+				case 's':
+					return formatString(String(value), leftJustify, minWidth, precision, zeroPad, customPadChar);
+				case 'c':
+					return formatString(String.fromCharCode(+value), leftJustify, minWidth, precision, zeroPad);
+				case 'b':
+					return formatBaseX(value, 2, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+				case 'o':
+					return formatBaseX(value, 8, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+				case 'x':
+					return formatBaseX(value, 16, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+				case 'X':
+					return formatBaseX(value, 16, prefixBaseX, leftJustify, minWidth, precision, zeroPad).toUpperCase();
+				case 'u':
+					return formatBaseX(value, 10, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+				case 'i':
+				case 'd':
+					number = +value || 0;
+					number = Math.round(number - number % 1); // Plain Math.round doesn't just truncate
+					prefix = number < 0 ? '-' : positivePrefix;
+					value = prefix + pad(String(Math.abs(number)), precision, '0', false);
+					return justify(value, prefix, leftJustify, minWidth, zeroPad);
+				case 'e':
+				case 'E':
+				case 'f': // Should handle locales (as per setlocale)
+				case 'F':
+				case 'g':
+				case 'G':
+					number = +value;
+					prefix = number < 0 ? '-' : positivePrefix;
+					method = ['toExponential', 'toFixed', 'toPrecision']['efg'.indexOf(type.toLowerCase())];
+					textTransform = ['toString', 'toUpperCase']['eEfFgG'.indexOf(type) % 2];
+					value = prefix + Math.abs(number)[method](precision);
+					return justify(value, prefix, leftJustify, minWidth, zeroPad)[textTransform]();
+				default:
+					return substring;
+			}
+		};
+
+		return format.replace(regex, doFormat);
+	}
+
+
+</script></div></body></html>
