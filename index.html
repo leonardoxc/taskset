@@ -112,6 +112,8 @@
 		}
 
 		function taskset() {
+			storeValues(0);
+
 			$.get('http://www.livetrack24.com/ajax.live_task.php',{
 				op:"settask",message: $("#taskDefinitionStr").val()
 			}, function(result) {
@@ -153,7 +155,7 @@
 
 
 			if (displayMessage) {
-				$("#resultDiv").html('Values Stored OK').fadeTo(1500, 500).slideUp(500);
+				$("#resultDiv").removeClass("alert-danger").html('Values Stored OK').fadeTo(1500, 500).slideUp(500);
 			}
 			// getTaskDetails();
 		}
@@ -346,7 +348,7 @@
 
 			copyToClipboard(document.getElementById("taskDefinitionStr"));
 
-			$("#resultDiv2").html("Created Task Definition and copied it into the clipboard").fadeTo(2000, 500).slideUp(500);
+			$("#resultDiv2").removeClass("alert-danger").html("Created Task Definition and copied it into the clipboard").fadeTo(2000, 500).slideUp(500);
 		}
 
 		function timeProccess(atime) {
@@ -673,15 +675,15 @@
 			<div class="panel-body">
 				<div class="row">
 					<div class="col-xs-6 col-md-3">Task ID</div>
-					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeTaskID();" id="taskID" name="taskID" value=""></div>
+					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeTaskID();" onchange="javascript:storeTaskID();" id="taskID" name="taskID" value=""></div>
 					<div class="col-xs-6 col-md-3">Task Password</div>
-					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeTaskPass();" id="taskPass" name="taskPass" value=""></div>
+					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeTaskPass();"  onchange="javascript:storeTaskPass();" id="taskPass" name="taskPass" value=""></div>
 				</div>
 				<div class="row">
 					<div class="col-xs-6 col-md-3">UserID</div>
-					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeUserID();" id="userID" name="userID" value=""></div>
+					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeUserID();" onchange="javascript:storeUserID();"  id="userID" name="userID" value=""></div>
 					<div class="col-xs-6 col-md-3">User Pin</div>
-					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeUserPin();" id="userPin" name="userPin" value=""></div>
+					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeUserPin();"  onchange="javascript:storeUserPin();" id="userPin" name="userPin" value=""></div>
 				</div>
 
 
@@ -728,8 +730,8 @@
 
 						<div class='buttonDiv'>
 							<a class='btn btn-lg btn-primary' href="javascript:createTaskDefinition();">2. Create Task Definition</a><BR>
-							<a class='btn btn-lg btn-primary' href="javascript:taskset();">3a. TRY TO SET TASK with INTERNET</a><BR>
-							<a id="sendSMSbutton" class='btn btn-lg btn-danger' href="sms:+<? echo $CONF['SMS2way']['phoneNumber']?>">3b. SEND SMS TO +<? echo $CONF['SMS2way']['phoneNumber']?></a>
+							<a class='btn btn-lg btn-primary' href="javascript:taskset();">3a. SET TASK via INTERNET</a><BR>
+							<a id="sendSMSbutton" class='btn btn-lg btn-danger' href="sms:+306972098522">3b. SET TASK via SMS</a>
 
 						</div>
 					</div>
