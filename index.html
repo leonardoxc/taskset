@@ -1,10 +1,17 @@
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<body>
 
-<!-- saved from url=(0046)http://www.livetrack24.com/mobile/docs/taskset -->
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body><div style="clear:both;"><link rel="stylesheet" type="text/css" href="./index_files/taskAdmin.css">
+<div style="clear:both;">
+
+<link rel="stylesheet" type="text/css" href="./index_files/taskAdmin.css">
 <script language="javascript" src="./index_files/jquery.js"></script>
 <link rel="stylesheet" type="text/css" href="./index_files/grouped.min.css">
 <link rel="stylesheet" type="text/css" href="./index_files/bootstrap.min.css">
 <link rel="stylesheet" type="text/css" href="./index_files/bootstrap-theme.min.css">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script>
@@ -105,7 +112,7 @@
 		var selectHtml="<option value='0'>Select Turnpoint</option>\n";
 		for (index = 0; index < waypoints.length; ++index) {
 			var wpt=waypoints[index];
-			selectHtml+="<option value='"+wpt['name']+"'>"+wpt['desc']+"</option>\n";
+			selectHtml+="<option value='"+wpt['name']+"'>"+wpt['name']+" - "+wpt['desc']+"</option>\n";
 		}
 
 		$(".tpselect").each( function($this){
@@ -177,7 +184,7 @@
 			if (wpt['radius']!=400) radStr='.r'+wpt['radius'];
 			else radStr='';
 
-			tpName=wpt['tpname'].substr(0,2).toLowerCase();
+			tpName=wpt['tpname'].substr(0,3).toLowerCase();
 			if (wpt['wType']=='START') {
 				tpName+='.ss';
 			} else if (wpt['wType']=='ES') {
