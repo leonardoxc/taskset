@@ -14,122 +14,201 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script>
-	var maxTpnum=20;
-	var maxTpnum0=9;
 
-	var taskID="";
-	var taskPass="";
-	var userID="";
-	var userPin="";
-	var taskCat=0;
+	<script>
+		var maxTpnum=20;
+		var maxTpnum0=9;
 
-	var waypoints=[];
+		var taskID="";
+		var taskPass="";
+		var userID="";
+		var userPin="";
+		var taskCat=0;
 
-	var taskTurnpoints=[];
-	var taskInfo=[];
-	var taskDefinitionStr='';
+		var waypoints=[];
 
-	var taskName='Task Name';
+		var taskTurnpoints=[];
+		var taskInfo={};
+		var taskDefinitionStr='';
 
-	var isPg=0;
-	var isGliding=0;
-	var isOther=0;
+		var taskName='Task Name';
 
-	$(document).ready(function() {
+		var isPg=0;
+		var isGliding=0;
+		var isOther=0;
 
-		taskID=localStorage.getItem('taskID');
-		taskPass=localStorage.getItem('taskPass');
-		userID=localStorage.getItem('userID');
-		userPin=localStorage.getItem('userPin');
+		$(document).ready(function() {
 
-		waypoints=[];
-		var wptStr=localStorage.getItem('waypoints');
-		if (wptStr && wptStr!='undefined') {
-			waypoints = JSON.parse(wptStr);
-		}
-		if (!waypoints) waypoints=[];
-		taskName=localStorage.getItem('taskName');
-		taskCat=localStorage.getItem('taskCat');
+			taskID=localStorage.getItem('taskID');
+			taskPass=localStorage.getItem('taskPass');
+			userID=localStorage.getItem('userID');
+			userPin=localStorage.getItem('userPin');
+
+			waypoints=[];
+			var wptStr=localStorage.getItem('waypoints');
+			if (wptStr && wptStr!='undefined') {
+				waypoints = JSON.parse(wptStr);
+			}
+			if (!waypoints) waypoints=[];
+
+			taskTurnpoints=[];
+			wptStr=localStorage.getItem('taskTurnpoints');
+			if (wptStr && wptStr!='undefined') {
+				taskTurnpoints= JSON.parse(wptStr);
+			}
+			if (!taskTurnpoints) taskTurnpoints=[];
+
+			taskInfo={};
+			wptStr=localStorage.getItem('taskInfo');
+			if (wptStr && wptStr!='undefined') {
+				taskInfo= JSON.parse(wptStr);
+			}
+			if (!taskInfo) taskInfo={};
 
 
-		showRows();
+			taskName=localStorage.getItem('taskName');
+			taskCat=localStorage.getItem('taskCat');
 
-		updateFields();
+			showRows();
 
-		$(".taskAdminTable tr:even").css("background-color", "#FAFAFF");
-		$(".taskAdminTable tr:odd").css("background-color", "#FFFFFF");
+			updateFields();
+
+			updateTaskInfo();
+
+			$(".taskAdminTable tr:even").css("background-color", "#FAFAFF");
+			$(".taskAdminTable tr:odd").css("background-color", "#FFFFFF");
 
 
+			for(var i=0;i<taskTurnpoints.length;i++) {
+				$("#compTp"+i).val(taskTurnpoints[i]['tpname']);
+			};
 
-		$(".tpTr").each(function(index){
-			var i=$(this).attr('id').substr(4);
-			viewTypes(i);
-			//viewSubTypes3(i);
+
+			$(".tpTr").each(function(index){
+				var i=$(this).attr('id').substr(4);
+				viewTypes(i);
+				//viewSubTypes3(i);
+			});
+
+			document.getElementById("sendSMSbutton").addEventListener("click", function() {
+				copyToClipboard(document.getElementById("taskDefinitionStr"));
+			});
+
 		});
 
-		document.getElementById("sendSMSbutton").addEventListener("click", function() {
-			copyToClipboard(document.getElementById("taskDefinitionStr"));
-		});
+		function resetTunpoints() {
 
-	});
+			taskTurnpoints=[];
+			$("#mainTable tr:not(:first)").remove();
 
+			showRows();
 
-	function storeValues() {
-		taskID=$("#taskID").val();
-		taskPass=$("#taskPass").val();
-		userID=$("#userID").val();
-		userPin=$("#userPin").val();
-		taskName=$("#taskName").html();
+			updateFields();
+			$(".tpTr").each(function(index){
+				var i=$(this).attr('id').substr(4);
+				viewTypes(i);
+			});
 
-		localStorage.setItem('taskID', taskID);
-		localStorage.setItem('taskPass', taskPass);
-		localStorage.setItem('userID', userID);
-		localStorage.setItem('userPin', userPin);
-
-
-		$("#resultDiv").html('Values Stored OK').fadeTo(1500, 500).slideUp(500);
-		// getTaskDetails();
-	}
-
-	function updateFields() {
-
-		$("#taskID").val(taskID);
-		$("#taskPass").val(taskPass);
-		$("#userID").val(userID);
-		$("#userPin").val(userPin);
-		// $("#waypoints").value(waypoints);
-		if (taskName) $("#taskName").html(taskName);
-
-		isPg=(taskCat==1)?1:0;
-		var isGliding=(taskCat==8)?1:0;
-		var isOther=(taskCat==1 || taskCat==8)?0:1;
-
-		if (isPg) showPg();
-		else if (isGliding) showGliding();
-		else showOther();
-
-		var selectHtml="<option value='0'>Select Turnpoint</option>\n";
-		for (index = 0; index < waypoints.length; ++index) {
-			var wpt=waypoints[index];
-			selectHtml+="<option value='"+wpt['name']+"'>"+wpt['name']+" - "+wpt['desc']+"</option>\n";
 		}
 
-		$(".tpselect").each( function($this){
-			$(this).html(selectHtml);
-		});
-	}
+		function taskset() {
+			$.get('http://www.livetrack24.com/ajax.live_task.php',{
+				op:"settask",message: $("#taskDefinitionStr").val()
+			}, function(result) {
+				if (result.substr(0,8)=='Task SET') {
+					$("#resultDiv2").removeClass("alert-danger").show().html(result);
+				} else {
+					$("#resultDiv2").addClass("alert-danger").html(result).fadeTo(1500, 500).slideUp(1000);
+				}
+
+			}).fail(function() {
+				$("#resultDiv2").addClass("alert-danger").html("Could not set Task via internet, try SMS").fadeTo(1500, 500).slideUp(1000);
+			});
+		}
+
+		function storeTaskID() {
+			localStorage.setItem('taskID', $("#taskID").val());
+		}
+		function storeTaskPass() {
+			localStorage.setItem('taskPass', $("#taskPass").val());
+		}
+		function storeUserID() {
+			localStorage.setItem('userID', $("#userID").val());
+		}
+		function storeUserPin() {
+			localStorage.setItem('userPin', $("#userPin").val());
+		}
+
+		function storeValues(displayMessage) {
+			taskID=$("#taskID").val();
+			taskPass=$("#taskPass").val();
+			userID=$("#userID").val();
+			userPin=$("#userPin").val();
+			taskName=$("#taskName").html();
+
+			localStorage.setItem('taskID', taskID);
+			localStorage.setItem('taskPass', taskPass);
+			localStorage.setItem('userID', userID);
+			localStorage.setItem('userPin', userPin);
 
 
-	function getTaskDetails() {
+			if (displayMessage) {
+				$("#resultDiv").html('Values Stored OK').fadeTo(1500, 500).slideUp(500);
+			}
+			// getTaskDetails();
+		}
 
-		if (!taskID ) return;
+		function time2Full(timeStr) {
+			return timeStr.substr(0,2)+':'+timeStr.substr(2,2);
+		}
+		function updateTaskInfo() {
+			$("#taskType").val(taskInfo['taskType']);
+			$("#taskStatus").val(taskInfo['taskStatus']);
+			$("#windowOpen").val( time2Full(taskInfo['windowOpen']) );
+			$("#windowClose").val(time2Full(taskInfo['windowClose']));
+			$("#startOpen").val(time2Full(taskInfo['startOpen']));
+			$("#landingDeadline").val(time2Full(taskInfo['landingDeadline']));
+			$("#minDistance").val(taskInfo['minDistance']);
+		}
 
-		storeValues();
+		function updateFields() {
 
-		$.get('http://www.livetrack24.com/ajax.live_task.php',{
+			$("#taskID").val(taskID);
+			$("#taskPass").val(taskPass);
+			$("#userID").val(userID);
+			$("#userPin").val(userPin);
+			// $("#waypoints").value(waypoints);
+			if (taskName) $("#taskName").html(taskName);
+
+			isPg=(taskCat==1)?1:0;
+			var isGliding=(taskCat==8)?1:0;
+			var isOther=(taskCat==1 || taskCat==8)?0:1;
+
+			if (isPg) showPg();
+			else if (isGliding) showGliding();
+			else showOther();
+
+			var selectHtml="<option value='0'>Select Turnpoint</option>\n";
+			for (index = 0; index < waypoints.length; ++index) {
+				var wpt=waypoints[index];
+				selectHtml+="<option value='"+wpt['name']+"'>"+wpt['name']+" - "+wpt['desc']+"</option>\n";
+			}
+
+			$(".tpselect").each( function($this){
+				$(this).html(selectHtml);
+			});
+		}
+
+
+		function getTaskDetails() {
+
+			if (!taskID ) return;
+
+			storeValues(0);
+
+			$.get('http://www.livetrack24.com/ajax.live_task.php',{
 				op:"getTaskDetails",taskID:taskID,taskPass:taskPass
-				}, function(result) {
+			}, function(result) {
 
 				var jsonResult = eval('(' + result + ')');
 				if ( jsonResult.result == 0 ) {
@@ -146,230 +225,234 @@
 				updateFields();
 				$("#resultDiv").removeClass("alert-danger").html("Loaded Task OK").fadeTo(1500, 500).slideUp(500);
 
+
 			}).fail(function() {
 				$("#resultDiv").addClass("alert-danger").html("Problem, Task is NOT loaded").fadeTo(1500, 500).slideUp(500);
 			});
 
-	}
-
-	function getTaskDefinition(waypoints,taskInfo) {
-		var taskTypes= {
-			'Race to Goal':'race',
-			'Elapsed Time':'elap',
-			'Open Distance':'open'
-		};
-
-		var taskType= taskTypes[ taskInfo['taskType'] ];
-
-		if (!taskType) taskType='race';
-
-		var taskDefStr='t1.1 '+taskType;
-
-		if (taskInfo['taskStatus']>0) {
-			if (taskInfo['taskStatus']==1) taskDefStr+='.p';
-			else if (taskInfo['taskStatus']==2) taskDefStr+='.c';
-			else if (taskInfo['taskStatus']==4) taskDefStr+='.s';
 		}
-		// all time are in minutes from 00:00, local times
-		taskDefStr+=' wo'+(taskInfo['windowOpen']);
-		taskDefStr+=' wc'+(taskInfo['windowClose']);
-		taskDefStr+=' so'+(taskInfo['startOpen']);
-		taskDefStr+=' tc'+(taskInfo['landingDeadline']);
-		// t1.1 race wo1340 wc+200 so+20 tc1900 d03 b42.ss.r6000 b43 b55 b54 a06.es.r1000 a06.gl.r200
+
+		function getTaskDefinition(waypoints,taskInfo) {
+			var taskTypes= {
+				'Race to Goal':'race',
+				'Elapsed Time':'elap',
+				'Open Distance':'open'
+			};
+
+			var taskType= taskTypes[ taskInfo['taskType'] ];
+
+			if (!taskType) taskType='race';
+
+			var taskDefStr='t1.1 '+taskType;
+
+			if (taskInfo['taskStatus']>0) {
+				if (taskInfo['taskStatus']==1) taskDefStr+='.p';
+				else if (taskInfo['taskStatus']==2) taskDefStr+='.c';
+				else if (taskInfo['taskStatus']==4) taskDefStr+='.s';
+			}
+			// all time are in minutes from 00:00, local times
+			taskDefStr+=' wo'+(taskInfo['windowOpen']);
+			taskDefStr+=' wc'+(taskInfo['windowClose']);
+			taskDefStr+=' so'+(taskInfo['startOpen']);
+			taskDefStr+=' tc'+(taskInfo['landingDeadline']);
+			// t1.1 race wo1340 wc+200 so+20 tc1900 d03 b42.ss.r6000 b43 b55 b54 a06.es.r1000 a06.gl.r200
 
 
-		for (index = 0; index < waypoints.length; ++index) {
-			var wpt=waypoints[index];
+			for (index = 0; index < waypoints.length; ++index) {
+				var wpt=waypoints[index];
 
-			if (wpt['radius']!=400) radStr='.r'+wpt['radius'];
-			else radStr='';
+				if (wpt['radius']!=400 && wpt['radius']!='' && wpt['radius']!=0 ) radStr='.r'+wpt['radius'];
+				else radStr='';
 
-			tpName=wpt['tpname'].substr(0,3).toLowerCase();
-			if (wpt['wType']=='START') {
-				tpName+='.ss';
-			} else if (wpt['wType']=='ES') {
-				if (wpt['gradientRatio'] > 0) {
-					tpName+='.ce.g';
-					gradientStr= Math.round( wpt['gradientRatio'] * 10 );
-					if (gradientStr % 10 == 0) gradientStr = round( wpt['gradientRatio'] );
-					tpName+=gradientStr;
-					if (wpt['radius']>0) $radStr='.r'+wpt['radius'];
-					else radStr='';
-				} else {
-					tpName+='.es';
+				tpName=wpt['tpname'].substr(0,3).toLowerCase();
+				if (wpt['wType']=='START') {
+					tpName+='.ss';
+				} else if (wpt['wType']=='ES') {
+					if (wpt['gradientRatio'] > 0) {
+						tpName+='.ce.g';
+						gradientStr= Math.round( wpt['gradientRatio'] * 10 );
+						if (gradientStr % 10 == 0) gradientStr = Math.round( wpt['gradientRatio'] );
+						tpName+=gradientStr;
+						if (wpt['radius']>0) $radStr='.r'+wpt['radius'];
+						else radStr='';
+					} else {
+						tpName+='.es';
+					}
+				} else if (wpt['wType']=='GOAL' && wpt['shapeType']==2) {
+					tpName+='.gl';
 				}
-			} else if (wpt['wType']=='GOAL' && wpt['shapeType']==2) {
-				tpName+='.gl';
+				taskDefStr+=' '+tpName+radStr;
+
 			}
-			taskDefStr+=' '+tpName+radStr;
-
+			return taskDefStr;
 		}
-		return taskDefStr;
-	}
 
-	function conv_min2Time_2(mins) {
-		return sprintf("%02d%02d",mins/60,mins%60);
-	}
+		function conv_min2Time_2(mins) {
+			return sprintf("%02d%02d",mins/60,mins%60);
+		}
 
-	function createTaskDefinition() { // get the task from the form elements
-		var taskTurnpoints=[];
-		var tpNum=0;
+		function createTaskDefinition() { // get the task from the form elements
+			storeValues(0);
 
-		for(var i=0; i<maxTpnum;i++) {
-			var row=$("#row_"+i);
+			var taskTurnpoints=[];
+			var tpNum=0;
 
-			var tpType=$("#tp"+i+"_type").val();
-			var tpName=$("#compTp"+i).val();
+			for(var i=0; i<maxTpnum;i++) {
+				var row=$("#row_"+i);
 
-			var shapeType=$("#tp"+i+"_shapeType").val();
-			var radius=$("#tp"+i+"_radius").val();
-			var angle=$("#tp"+i+"_angle").val();
-			var angle2=$("#tp"+i+"_angle2").val();
-			var shapeType2=	$("#tp"+i+"_shapeType2").val();
-			var gradientRatio=$("#tp"+i+"_gradientRatio").val();
+				var tpType=$("#tp"+i+"_type").val();
+				var tpName=$("#compTp"+i).val();
 
-			if (!radius) radius=400;
-			if (tpType!=0 && tpName!=0) {
-				taskTurnpoints[tpNum]= {
-					'wType':tpType,
-					'tpname':tpName,
-					'shapeType':shapeType,
-					'radius':radius,
-					'angle':angle,
-					'angle2':angle2,
-					'shapeType2':shapeType2,
-					'gradientRatio':gradientRatio
-				};
-				tpNum++;
+				var shapeType=$("#tp"+i+"_shapeType").val();
+				var radius=$("#tp"+i+"_radius").val();
+				var angle=$("#tp"+i+"_angle").val();
+				var angle2=$("#tp"+i+"_angle2").val();
+				var shapeType2=	$("#tp"+i+"_shapeType2").val();
+				var gradientRatio=$("#tp"+i+"_gradientRatio").val();
+
+				if (tpType!=0 && tpName!=0) {
+					taskTurnpoints[tpNum]= {
+						'wType':tpType,
+						'tpname':tpName,
+						'shapeType':shapeType,
+						'radius':radius,
+						'angle':angle,
+						'angle2':angle2,
+						'shapeType2':shapeType2,
+						'gradientRatio':gradientRatio
+					};
+					tpNum++;
+				}
+
 			}
 
+			taskInfo={};
+			taskInfo['taskType'] =$("#taskType").val(); // 'race';
+			taskInfo['taskStatus']=$("#taskStatus").val();
+			taskInfo['windowOpen']=timeProccess($("#windowOpen").val());
+			taskInfo['windowClose']=timeProccess($("#windowClose").val());
+			taskInfo['startOpen']=timeProccess($("#startOpen").val());
+			taskInfo['landingDeadline']=timeProccess($("#landingDeadline").val());
+			taskInfo['minDistance']=$("#minDistance").val();
+
+
+			localStorage.setItem('taskTurnpoints', JSON.stringify(taskTurnpoints) );
+			localStorage.setItem('taskInfo', JSON.stringify(taskInfo) );
+
+			taskDefinitionStr="LIVE "+userID+" "+userPin+" task "+taskID+" "+taskPass+ " "+taskInfo['minDistance']+" ";
+
+			taskDefinitionStr+= getTaskDefinition(taskTurnpoints,taskInfo);
+			$("#taskDefinitionStr").val(taskDefinitionStr);
+
+			copyToClipboard(document.getElementById("taskDefinitionStr"));
+
+			$("#resultDiv2").html("Created Task Definition and copied it into the clipboard").fadeTo(2000, 500).slideUp(500);
 		}
 
-		taskInfo=[];
-		taskInfo['taskType'] =$("#taskType").val(); // 'race';
-		taskInfo['taskStatus']=$("#taskStatus").val();
-		taskInfo['windowOpen']=timeProccess($("#windowOpen").val());
-		taskInfo['windowClose']=timeProccess($("#windowClose").val());
-		taskInfo['startOpen']=timeProccess($("#startOpen").val());
-		taskInfo['landingDeadline']=timeProccess($("#landingDeadline").val());
-		taskInfo['minDistance']=$("#minDistance").val();
-
-
-
-		taskDefinitionStr="LIVE "+userID+" "+userPin+" task "+taskID+" "+taskPass+ " "+taskInfo['minDistance']+" ";
-
-		taskDefinitionStr+= getTaskDefinition(taskTurnpoints,taskInfo);
-		$("#taskDefinitionStr").val(taskDefinitionStr);
-
-		copyToClipboard(document.getElementById("taskDefinitionStr"));
-
-		$("#resultDiv2").html("Created Task Definition and copied it into the clipboard").fadeTo(2000, 500).slideUp(500);
-	}
-
-function timeProccess(atime) {
-	var goodTime=atime.substr(0,2)+atime.substr(3,2);
-	return goodTime;
-}
-
-function addTurnpoints() {
-	$(".tpTr").show();
- 	$("#AddTPbutton").hide();
-}
-
-function showPg() {
-	$(".tpAngle").hide();
-	//$(".tpGradient").show();
-}
-
-function showGliding() {
-	// $(".tpAngle").show();
-	$(".tpGradient").hide();
-}
-
-function showOther() {
-	$(".tpAngle").hide();
-	$(".tpGradient").hide();
-}
-
-function selectTurnpoint(idx) {
-	var sl=$('#compTp'+idx);
-
-	/*
-	tp_id= sl.options[sl.selectedIndex].value ;    // Which menu item is selected
-	if (tp_id==-1) return;
-
-	var tpNameField=$('#tp'+idx+'_name');
-	var tpLatField=$('#tp'+idx+'_lat');
-	var tpLonField=$('#tp'+idx+'_lon');
-	var tpNameTpField=$('#tp'+idx+'_tpname');
-
-	tpNameField.value=tpName[tp_id];
-	tpLatField.value=tpLat[tp_id];
-	tpLonField.value=tpLon[tp_id];
-	tpNameTpField.value=tpNameTp[tp_id];
-	*/
-}
-
-function viewTypes(idx) {
-
-	var obj=$("#tp"+idx+"_shapeType");
-	var val=obj.val();
-
-	$("#tp"+idx+"_radiusText").hide();
-	$("#tp"+idx+"_angle2").parent().hide();
-	$("#tp"+idx+"_shapeType2").hide();
-
-	if (val==0){ // cylinder
-		$("#tp"+idx+"_gradientRatio").parent().hide();
-		$("#tp"+idx+"_angle").parent().hide();
-	} else if (val==1){ //cone
-		$("#tp"+idx+"_gradientRatio").parent().show();
-		$("#tp"+idx+"_angle").parent().hide();
-	} else if (val==2){ // line
-		$("#tp"+idx+"_gradientRatio").parent().hide();
-		$("#tp"+idx+"_angle").parent().hide();
-		$("#tp"+idx+"_radiusText").show();
-	} else if (val==3){ // wedge
-		$("#tp"+idx+"_gradientRatio").parent().hide();
-		$("#tp"+idx+"_angle").parent().show();
-		viewSubTypes3(idx);
-	}
-}
-
-function viewSubTypes3(idx) {
-
-	var val0=$("#tp"+idx+"_shapeType").val();
-	if (val0!=3) {
-		$("#tp"+idx+"_shapeType2").hide();
-		return;
-	}
-
-	$("#tp"+idx+"_shapeType2").show();
-
-	var val=$("#tp"+idx+"_shapeType2").val();
-
-	if (val==3){ // fixed value
-		$("#tp"+idx+"_angle2").parent().show();
-	} else {
-		$("#tp"+idx+"_angle2").parent().hide();
-	}
-}
-
-function showRows() {
-
-	realTpNum=taskTurnpoints.length;
-	showAddButton=0;
-	var html="";
-
-	for(var i=0; i<maxTpnum;i++) {
-
-		var style="";
-		if (realTpNum< maxTpnum0 && i>maxTpnum0) {
-			style=" style='display:none;' ";
-			showAddButton=1;
+		function timeProccess(atime) {
+			var goodTime=atime.substr(0,2)+atime.substr(3,2);
+			return goodTime;
 		}
 
-		html+=" \
+		function addTurnpoints() {
+			$(".tpTr").show();
+			$("#AddTPbutton").hide();
+		}
+
+		function showPg() {
+			$(".tpAngle").hide();
+			//$(".tpGradient").show();
+		}
+
+		function showGliding() {
+			// $(".tpAngle").show();
+			$(".tpGradient").hide();
+		}
+
+		function showOther() {
+			$(".tpAngle").hide();
+			$(".tpGradient").hide();
+		}
+
+		function selectTurnpoint(idx) {
+			var sl=$('#compTp'+idx);
+
+			/*
+			 tp_id= sl.options[sl.selectedIndex].value ;    // Which menu item is selected
+			 if (tp_id==-1) return;
+
+			 var tpNameField=$('#tp'+idx+'_name');
+			 var tpLatField=$('#tp'+idx+'_lat');
+			 var tpLonField=$('#tp'+idx+'_lon');
+			 var tpNameTpField=$('#tp'+idx+'_tpname');
+
+			 tpNameField.value=tpName[tp_id];
+			 tpLatField.value=tpLat[tp_id];
+			 tpLonField.value=tpLon[tp_id];
+			 tpNameTpField.value=tpNameTp[tp_id];
+			 */
+		}
+
+		function viewTypes(idx) {
+
+			var obj=$("#tp"+idx+"_shapeType");
+			var val=obj.val();
+
+			$("#tp"+idx+"_radiusText").hide();
+			$("#tp"+idx+"_angle2").parent().hide();
+			$("#tp"+idx+"_shapeType2").hide();
+
+			if (val==0){ // cylinder
+				$("#tp"+idx+"_gradientRatio").parent().hide();
+				$("#tp"+idx+"_angle").parent().hide();
+			} else if (val==1){ //cone
+				$("#tp"+idx+"_gradientRatio").parent().show();
+				$("#tp"+idx+"_angle").parent().hide();
+			} else if (val==2){ // line
+				$("#tp"+idx+"_gradientRatio").parent().hide();
+				$("#tp"+idx+"_angle").parent().hide();
+				$("#tp"+idx+"_radiusText").show();
+			} else if (val==3){ // wedge
+				$("#tp"+idx+"_gradientRatio").parent().hide();
+				$("#tp"+idx+"_angle").parent().show();
+				viewSubTypes3(idx);
+			}
+		}
+
+		function viewSubTypes3(idx) {
+
+			var val0=$("#tp"+idx+"_shapeType").val();
+			if (val0!=3) {
+				$("#tp"+idx+"_shapeType2").hide();
+				return;
+			}
+
+			$("#tp"+idx+"_shapeType2").show();
+
+			var val=$("#tp"+idx+"_shapeType2").val();
+
+			if (val==3){ // fixed value
+				$("#tp"+idx+"_angle2").parent().show();
+			} else {
+				$("#tp"+idx+"_angle2").parent().hide();
+			}
+		}
+
+		function showRows() {
+
+			realTpNum=taskTurnpoints.length;
+			showAddButton=0;
+			var html="";
+
+			for(var i=0; i<maxTpnum;i++) {
+
+				var style="";
+				if (realTpNum< maxTpnum0 && i>maxTpnum0) {
+					style=" style='display:none;' ";
+					showAddButton=1;
+				}
+
+				html+=" \
 <tr id='row_"+i+"' class='tpTr' "+style+" > \
 	<td align='right' valign='top'> \
 		<strong>"+(i+1)+"</strong> \
@@ -377,32 +460,60 @@ function showRows() {
 	<td align='left' valign='middle'> \
 		";
 
-/*
-        var type=waypoints[i]['wType'] ;
-		var sel_0,sel_1,sel_2,sel_3,sel_4,sel_5='';
+				var sel_0='', sel_1='', sel_2='', sel_3='', sel_4='', sel_5 = '';
+				var sel2_0='', sel2_1='', sel2_2='', sel2_3='';
+				var radius='';
+				var angle='';
+				var angle2='';
+				var shapeType2=0;
+				var gradientRatio='';
 
-		if( type=='TAKEOFF' ) 		sel_1='selected';
-		else if( type=='START' ) 	sel_2='selected';
-		else if( type=='WAYPT' )   	sel_3='selected';
-		else if( type=='ES' ) 	 	sel_4='selected';
-		else if( type=='GOAL' ) 	sel_5='selected';
-		else  sel_0='selected';
+				if (taskTurnpoints[i]) {
+					var type = taskTurnpoints[i]['wType'];
+					if (type == 'TAKEOFF')        sel_1 = 'selected';
+					else if (type == 'START')    sel_2 = 'selected';
+					else if (type == 'WAYPT')    sel_3 = 'selected';
+					else if (type == 'ES')        sel_4 = 'selected';
+					else if (type == 'GOAL')    sel_5 = 'selected';
+					else  sel_0 = 'selected';
 
-		if (waypoints[i]['gradientRatio']>0) {
-			waypoints[i]['shapeType'] = 1; // cone;
-        }
-*/
+					radius=taskTurnpoints[i]['radius'];
+					angle=taskTurnpoints[i]['angle'];
+					angle2=taskTurnpoints[i]['angle2'];
+					gradientRatio=taskTurnpoints[i]['gradientRatio'];
 
-		html+="\n" +
-		"<select name='tp"+i+"_type' id='tp"+i+"_type'>\
-		<option value='0'>- not used -</option>\n";
+					var shapeType = taskTurnpoints[i]['shapeType'];
+					if (shapeType == 0)        sel2_0 = 'selected';
+					else if (shapeType == 1)    sel2_1 = 'selected';
+					else if (shapeType == 2)    sel2_2 = 'selected';
+					else if (shapeType == 3)    sel2_3 = 'selected';
+					else  sel2_0 = 'selected';
 
-		if ( taskCat<=4)  html+="<option>TAKEOFF</option>\n";
-		html+="<option>START</option>\n";
-		html+="<option>WAYPT</option>\n";
-		if ( taskCat==1)  html+="<option>ES</option>\n";
+				}
+				//if (taskTurnpoints[i]['gradientRatio']>0) {
+				//	taskTurnpoints[i]['shapeType'] = 1; // cone;
+				//}
+				/*
+				 'wType':tpType,
+				 'tpname':tpName,
+				 'shapeType':shapeType,
+				 'radius':radius,
+				 'angle':angle,
+				 'angle2':angle2,
+				 'shapeType2':shapeType2,
+				 'gradientRatio':gradientRatio
+				 */
 
-		html+="<option>GOAL</option> \
+				html+="\n" +
+				"<select name='tp"+i+"_type' id='tp"+i+"_type'>\
+		<option value='0' "+sel_0+">- not used -</option>\n";
+
+				if ( taskCat<=4)  html+="<option "+sel_1+">TAKEOFF</option>\n";
+				html+="<option "+sel_2+">START</option>\n";
+				html+="<option "+sel_3+">WAYPT</option>\n";
+				if ( taskCat==1)  html+="<option "+sel_4+">ES</option>\n";
+
+				html+="<option "+sel_5+">GOAL</option> \
 		</select> \
 	</td> \
 	<td  class='' align='left' valign='middle'> \
@@ -412,14 +523,14 @@ function showRows() {
 	</td>\
 	<td class='tpType' align='left' valign='middle'> \
 		<select onchange='javascript:viewTypes("+i+");' name='tp"+i+"_shapeType'  id='tp"+i+"_shapeType' > \
-			<option value='0'>Cylinder</option> \
-			<option value='1'>Cone</option> \
-			<option value='2'>Line</option> \
-			<option value='3'>Wedge</option> \
+			<option "+sel2_0+" value='0'>Cylinder</option> \
+			<option "+sel2_1+" value='1'>Cone</option> \
+			<option "+sel2_2+" value='2'>Line</option> \
+			<option "+sel2_3+" value='3'>Wedge</option> \
 		</select> \
 		<div class='tpGradient' style='display:none;'> \
 			<span class='label label-warning'>Gradient</span> \
-			<input name='tp"+i+"_gradientRatio'  id='tp"+i+"_gradientRatio' type='text' size='3' value=''> \
+			<input name='tp"+i+"_gradientRatio'  id='tp"+i+"_gradientRatio' type='text' size='3' value='"+gradientRatio+"'> \
 		</div> \
 		<select onchange='javascript:viewSubTypes3("+i+");' name='tp"+i+"_shapeType2'  id='tp"+i+"_shapeType2' > \
 			<option value='0'>Symmetrical</option> \
@@ -429,529 +540,539 @@ function showRows() {
 		</select> \
 		<div class='tpAngle'> \
 			<span class='label label-warning'>Angle</span> \
-			<input name='tp"+i+"_angle' id='tp"+i+"_angle' type='text' size='3' value='' > \
+			<input name='tp"+i+"_angle' id='tp"+i+"_angle' type='text' size='3' value='"+angle+"' > \
 		</div> \
 		<div class='tpAngle'> \
 			<span class='label label-warning'>A12 Direction</span> \
-			<input name='tp"+i+"_angle2' id='tp"+i+"_angle2' type='text' size='3' value='' > \
+			<input name='tp"+i+"_angle2' id='tp"+i+"_angle2' type='text' size='3' value='"+angle2+"' > \
 		</div> \
 	</td> \
 	<td align='left' valign='middle'> \
-		<input class='tpRadius' id='tp"+i+"_radius' type='text' size='5' value='' >\
+		<input class='tpRadius' id='tp"+i+"_radius' type='text' size='5' value='"+radius+"' >\
 		<span class='label label-warning' style='display:none;' id='tp"+i+"_radiusText'>Each Side Width</span>\
 		</td> \
 		</tr>";
 
-		}
+			}
 
-	if (showAddButton) {
-		html+="<tr>\
+			if (showAddButton) {
+				html+="<tr>\
 		<td colspan='5' align='left' valign='middle'> \
 			<a href='javascript:addTurnpoints();' class='btn btn-warning btn-sm' id='AddTPbutton'>Add more Turnpoints</a>\
 		</td>\
 		</tr>";
-	 	}
-
-		$('#headerRow').after(html);
-
-	}
-
-	function toogleStartGates() {
-		$(".moreStarts").toggle();
-		$(".lessStarts").toggle();
-	}
-
-	function copyToClipboard(elem) {
-		// create hidden text element, if it doesn't already exist
-		var targetId = "_hiddenCopyText_";
-		var isInput = elem.tagName === "INPUT" || elem.tagName === "TEXTAREA";
-		var origSelectionStart, origSelectionEnd;
-		if (isInput) {
-			// can just use the original source element for the selection and copy
-			target = elem;
-			origSelectionStart = elem.selectionStart;
-			origSelectionEnd = elem.selectionEnd;
-		} else {
-			// must use a temporary form element for the selection and copy
-			target = document.getElementById(targetId);
-			if (!target) {
-				var target = document.createElement("textarea");
-				target.style.position = "absolute";
-				target.style.left = "-9999px";
-				target.style.top = "0";
-				target.id = targetId;
-				document.body.appendChild(target);
 			}
-			target.textContent = elem.textContent;
-		}
-		// select the content
-		var currentFocus = document.activeElement;
-		target.focus();
-		target.setSelectionRange(0, target.value.length);
 
-		// copy the selection
-		var succeed;
-		try {
-			succeed = document.execCommand("copy");
-		} catch(e) {
-			succeed = false;
-		}
-		// restore original focus
-		if (currentFocus && typeof currentFocus.focus === "function") {
-			currentFocus.focus();
+			html+="<tr>\
+		<td colspan='5' align='left' valign='middle'> \
+			<a href='javascript:resetTunpoints();' class='btn btn-danger btn-sm' id='resetTurnpoints'>Delete Task Turnpoints</a>\
+		</td>\
+		</tr>";
+
+			$('#headerRow').after(html);
+
 		}
 
-		if (isInput) {
-			// restore prior selection
-			elem.setSelectionRange(origSelectionStart, origSelectionEnd);
-		} else {
-			// clear temporary content
-			target.textContent = "";
+		function toogleStartGates() {
+			$(".moreStarts").toggle();
+			$(".lessStarts").toggle();
 		}
-		return succeed;
-	}
 
-</script>
+		function copyToClipboard(elem) {
+			// create hidden text element, if it doesn't already exist
+			var targetId = "_hiddenCopyText_";
+			var isInput = elem.tagName === "INPUT" || elem.tagName === "TEXTAREA";
+			var origSelectionStart, origSelectionEnd;
+			if (isInput) {
+				// can just use the original source element for the selection and copy
+				target = elem;
+				origSelectionStart = elem.selectionStart;
+				origSelectionEnd = elem.selectionEnd;
+			} else {
+				// must use a temporary form element for the selection and copy
+				target = document.getElementById(targetId);
+				if (!target) {
+					var target = document.createElement("textarea");
+					target.style.position = "absolute";
+					target.style.left = "-9999px";
+					target.style.top = "0";
+					target.id = targetId;
+					document.body.appendChild(target);
+				}
+				target.textContent = elem.textContent;
+			}
+			// select the content
+			var currentFocus = document.activeElement;
+			target.focus();
+			target.setSelectionRange(0, target.value.length);
 
-<style type="text/css">
+			// copy the selection
+			var succeed;
+			try {
+				succeed = document.execCommand("copy");
+			} catch(e) {
+				succeed = false;
+			}
+			// restore original focus
+			if (currentFocus && typeof currentFocus.focus === "function") {
+				currentFocus.focus();
+			}
 
-.wptTable, .wptTable td , input  ,select {
-	font-size:14px;
-}
+			if (isInput) {
+				// restore prior selection
+				elem.setSelectionRange(origSelectionStart, origSelectionEnd);
+			} else {
+				// clear temporary content
+				target.textContent = "";
+			}
+			return succeed;
+		}
 
-.taskAdminTable td {
-	padding-left:5px;
-}
+	</script>
 
-#mainTable {
-	background-color: #ffffff;
-}
-#mainForm {
-	/*width:800px;*/
-}
+	<style type="text/css">
 
-body {background: #ffffff;}
+		.wptTable, .wptTable td , input  ,select {
+			font-size:14px;
+		}
 
-.moreStarts{ display:none; }
+		.taskAdminTable td {
+			padding-left:5px;
+		}
 
-.buttonDiv {
-	text-align: center;
-}
-.buttonDiv * {
-	margin-top: 10px;
-}
+		#mainTable {
+			background-color: #ffffff;
+		}
+		#mainForm {
+			/*width:800px;*/
+		}
 
-#taskID {
-	background-color: #FFA466;
-}
+		body {background: #ffffff;}
 
-</style>
+		.moreStarts{ display:none; }
+
+		.buttonDiv {
+			text-align: center;
+		}
+		.buttonDiv * {
+			margin-top: 10px;
+		}
+
+		#taskID {
+			background-color: #FFA466;
+		}
+
+	</style>
 
 
-<div class="container" id="mainForm">
-	<div class="panel panel-primary">
-		<div class="panel-heading">
-			<div align="left" id="taskName">Task 2 / 2016-01-27</div>
-		</div>
-		<div class="panel-body">
-			<div class="row">
-				<div class="col-xs-6 col-md-3">Task ID</div>
-				<div class="col-xs-6 col-md-3"><input type="text" size="7" id="taskID" name="taskID" value="" autocomplete="off" style="background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAASCAYAAABSO15qAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3QsPDigO/bwqsQAAAfNJREFUOMvNkz1ok2EQx3/39umHmpZWMUVaUEEUpWlQ0QyiCDooFhwcFN2lgqhTEMKTDwsZCw4SQQNOLh20KBgQRZ0kIK2LlBaqtNKhfkRqbHnfvOEc0kCbD0Enb/vD8bu7/93BfxfRaLTfWnuoqq21EWttqFm+s1ZYa692dHRMiUgWEEBEJCMiE/F4PN0IYGq0JyKbgJC19ryq+iKyH0BVZxoBpFbH4/HXInIUmFbVsojsBV6mUqkTTQGxWGy74zhdpVJpxRizw3GcnIi0rFYuA+dUdVFEAr7vf0mn05PrRjDG3ASG29vb6ytUQI9FKs0aY+4Bl2tNdP51a7Lq/kFV3aqqP0QkaIwZ/yvA2kgkEs9F5CQEiAydYbC/i6VPeR7l3uM1ALTU3MEFEYmKCJFLNzg1sA186NsVZl/nAvnp738+JGA34EOQPTs3UP6YY/T2KC8WymwJHaYHgABDw9c5G+6pB4yMjNzyPC8My/zyoKVvkEj4OAO9lUZbAdjI5t5ugp2tzY1JJpOavv9M55ZcVd9VV1XVndE3s8u6Plxtsr42jp0+QvfPCTJ3xvkKeHNT5J88IJsdY74M3yafksncrfuF6kvw9tUHDlyMcOVaBFbmeTj2jqIHxUIJF3A/z7K4WKhfY3WEaieBnjaKhWLTcX8DATq/EhizV6kAAAAASUVORK5CYII=&quot;); background-attachment: scroll; background-position: 100% 50%; background-repeat: no-repeat;"></div>
-				<div class="col-xs-6 col-md-3">Task Password</div>
-				<div class="col-xs-6 col-md-3"><input type="text" size="7" id="taskPass" name="taskPass" value=""></div>
+	<div class="container" id="mainForm">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				<div align="left" id="taskName">Task Name should appear here after Step 2</div>
 			</div>
-			<div class="row">
-				<div class="col-xs-6 col-md-3">UserID</div>
-				<div class="col-xs-6 col-md-3"><input type="text" size="7" id="userID" name="userID" value="" autocomplete="off" style="background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAASCAYAAABSO15qAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3QsPDigO/bwqsQAAAfNJREFUOMvNkz1ok2EQx3/39umHmpZWMUVaUEEUpWlQ0QyiCDooFhwcFN2lgqhTEMKTDwsZCw4SQQNOLh20KBgQRZ0kIK2LlBaqtNKhfkRqbHnfvOEc0kCbD0Enb/vD8bu7/93BfxfRaLTfWnuoqq21EWttqFm+s1ZYa692dHRMiUgWEEBEJCMiE/F4PN0IYGq0JyKbgJC19ryq+iKyH0BVZxoBpFbH4/HXInIUmFbVsojsBV6mUqkTTQGxWGy74zhdpVJpxRizw3GcnIi0rFYuA+dUdVFEAr7vf0mn05PrRjDG3ASG29vb6ytUQI9FKs0aY+4Bl2tNdP51a7Lq/kFV3aqqP0QkaIwZ/yvA2kgkEs9F5CQEiAydYbC/i6VPeR7l3uM1ALTU3MEFEYmKCJFLNzg1sA186NsVZl/nAvnp738+JGA34EOQPTs3UP6YY/T2KC8WymwJHaYHgABDw9c5G+6pB4yMjNzyPC8My/zyoKVvkEj4OAO9lUZbAdjI5t5ugp2tzY1JJpOavv9M55ZcVd9VV1XVndE3s8u6Plxtsr42jp0+QvfPCTJ3xvkKeHNT5J88IJsdY74M3yafksncrfuF6kvw9tUHDlyMcOVaBFbmeTj2jqIHxUIJF3A/z7K4WKhfY3WEaieBnjaKhWLTcX8DATq/EhizV6kAAAAASUVORK5CYII=&quot;); background-attachment: scroll; background-position: 100% 50%; background-repeat: no-repeat;"></div>
-				<div class="col-xs-6 col-md-3">User Pin</div>
-				<div class="col-xs-6 col-md-3"><input type="text" size="7" id="userPin" name="userPin" value="" autocomplete="off" style="background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAASCAYAAABSO15qAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3QsPDigO/bwqsQAAAfNJREFUOMvNkz1ok2EQx3/39umHmpZWMUVaUEEUpWlQ0QyiCDooFhwcFN2lgqhTEMKTDwsZCw4SQQNOLh20KBgQRZ0kIK2LlBaqtNKhfkRqbHnfvOEc0kCbD0Enb/vD8bu7/93BfxfRaLTfWnuoqq21EWttqFm+s1ZYa692dHRMiUgWEEBEJCMiE/F4PN0IYGq0JyKbgJC19ryq+iKyH0BVZxoBpFbH4/HXInIUmFbVsojsBV6mUqkTTQGxWGy74zhdpVJpxRizw3GcnIi0rFYuA+dUdVFEAr7vf0mn05PrRjDG3ASG29vb6ytUQI9FKs0aY+4Bl2tNdP51a7Lq/kFV3aqqP0QkaIwZ/yvA2kgkEs9F5CQEiAydYbC/i6VPeR7l3uM1ALTU3MEFEYmKCJFLNzg1sA186NsVZl/nAvnp738+JGA34EOQPTs3UP6YY/T2KC8WymwJHaYHgABDw9c5G+6pB4yMjNzyPC8My/zyoKVvkEj4OAO9lUZbAdjI5t5ugp2tzY1JJpOavv9M55ZcVd9VV1XVndE3s8u6Plxtsr42jp0+QvfPCTJ3xvkKeHNT5J88IJsdY74M3yafksncrfuF6kvw9tUHDlyMcOVaBFbmeTj2jqIHxUIJF3A/z7K4WKhfY3WEaieBnjaKhWLTcX8DATq/EhizV6kAAAAASUVORK5CYII=&quot;); background-attachment: scroll; background-position: 100% 50%; background-repeat: no-repeat;"></div>
-			</div>
-
-
-
-			<div class="buttonDiv">
-				<a class="btn btn-lg btn-primary" href="javascript:storeValues();">1. Store Values (check TaskID !!!)</a> <br>
-
-				<a class="btn btn-lg  btn-warning" href="javascript:getTaskDetails();">2. Get Task Waypoints (only once)</a>
-			</div>
-
-			<div class="row">
-				<div class="col-xs-12">
-					<a class="btn btn-lg btn-primary" href="javascript:$('#instructions').toggle();">Instructions</a>
-					<div id="instructions" style="display:none;">
-						<ul>
-							<li>To find your userID go to "My Account" -> "Edit account" and look at the url. Your userID is the numbers after user_id/ </li>
-							<li>Your User Pin is the "Mobile Pin 1" that can be found on "My Account" -> "Edit account"</li>
-							<li>Important: make sure that you have some SMS credits on your account and the phone number you have entered in your profile is
-								correct. LiveTrack24 will use your SMS credits and your declered phone number to send you back a confirmation of the task definition</li>
-							<li>When you click on the red button to send the SMS, you will be redirected to the default SMS app of yuor phone.
-								The phone number will be already be filled in, and the content of the SMS message will be copied to the clipboard. You will need
-								to manually paste it into the message and send the SMS. The cost of the SMS is a normal international SMS.
-							</li>
-						</ul>
-
-					</div>
+			<div class="panel-body">
+				<div class="row">
+					<div class="col-xs-6 col-md-3">Task ID</div>
+					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeTaskID();" id="taskID" name="taskID" value=""></div>
+					<div class="col-xs-6 col-md-3">Task Password</div>
+					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeTaskPass();" id="taskPass" name="taskPass" value=""></div>
 				</div>
-			</div>
+				<div class="row">
+					<div class="col-xs-6 col-md-3">UserID</div>
+					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeUserID();" id="userID" name="userID" value=""></div>
+					<div class="col-xs-6 col-md-3">User Pin</div>
+					<div class="col-xs-6 col-md-3"><input type="text" size="7" onkeyup="javascript:storeUserPin();" id="userPin" name="userPin" value=""></div>
+				</div>
 
-			<div id="resultDiv" class="alert alert-success" style="display:none;"></div>
-
-		</div>
-	</div>
-
-
-	<div class="panel panel-primary">
-		<div class="panel-heading">
-			<div align="left">Task Definition</div>
-		</div>
-		<div class="panel-body">
-
-		<div class="row">
-			<div class="col-md-12">
-				<textarea style="width:100%; height: auto;" id="taskDefinitionStr"></textarea>
 
 				<div class="buttonDiv">
-					<a class="btn btn-lg btn-primary" href="javascript:createTaskDefinition();">3. Create Task Definition</a><br>
-					<a id="sendSMSbutton" class="btn btn-lg btn-danger" href="sms:+306972098522">4. SEND SMS TO +306972098522</a>
+					<!-- <a class="btn btn-lg btn-primary" href="javascript:storeValues(1);">1. Store Values (check TaskID !!!)</a> <BR> -->
+					<a class="btn btn-lg  btn-warning" href="javascript:getTaskDetails();">1. Get Task Waypoints (only once)</a>
 				</div>
+
+				<div class="row">
+					<div class="col-xs-12">
+						<a class="btn btn-lg btn-primary" href="javascript:$('#instructions').toggle();">Instructions</a>
+						<div id="instructions" style="display:none;">
+							<ul>
+								<ul>
+									<li>To find your userID go to "My Account" -> "Edit account" and look at the url. Your userID is the numbers after user_id/ </li>
+									<li>Your User Pin is the "Mobile Pin 1" that can be found on "My Account" -> "Edit account"</li>
+									<li>Important: make sure that you have some SMS credits on your account and the phone number you have entered in your profile is
+										correct. LiveTrack24 will use your SMS credits and your declered phone number to send you back a confirmation of the task definition</li>
+									<li>When you click on the red button to send the SMS, you will be redirected to the default SMS app of yuor phone.
+										The phone number will be already be filled in, and the content of the SMS message will be copied to the clipboard. You will need
+										to manually paste it into the message and send the SMS. The cost of the SMS is a normal international SMS.
+									</li>
+								</ul>
+
+						</div>
+					</div>
+				</div>
+
+				<div id="resultDiv" class="alert alert-success" style="display:none;"></div>
+
 			</div>
 		</div>
-		<br>
-		<div id="resultDiv2" class="alert alert-success" style="display:none;"></div>
-		</div>
-	</div>
 
-	<div class="panel panel-primary">
-		<div class="panel-heading">
-			<div align="left">Task Type &amp; Times</div>
-		</div>
-		<div class="panel-body">
-			<table align="center" class="mainText" cellspacing="0" cellpadding="5">
-		<tbody><tr class="green0">
-			<td align="right" valign="top"><strong>Type of Task</strong></td>
-			<td align="left" valign="top">
-				<strong>
-					<select name="taskType" type="text" id="taskType">
-						<option value="Race to Goal">Race to Goal</option>
-						<option value="Elapsed Time" $sel="">Elapsed Time</option>
-						<option value="Open Distance">Open Distance</option>
-					</select>
-				</strong>
-			</td>
-		</tr>
-		<tr class="green0">
-			<td align="right" valign="top"><strong>Task Status</strong></td>
-			<td align="left" valign="top"><strong>
-					<select name="taskStatus" type="text" id="taskStatus">
-						<option value="0">Active</option>
-						<option value="1">Provisional</option>
-						<option value="2">Canceled</option>
-						<option value="4">Stopped</option>
-					</select>
-			</strong></td>
-		</tr>
-		<tr class="green0">
-			<td align="right" valign="top" colspan="2">
-				<div class="alert alert-warning">
-					Enter All Times in hh:mm and in Local Timezone
+
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				<div align="left" >Task Definition</div>
+			</div>
+			<div class="panel-body">
+
+				<div class="row">
+					<div class="col-md-12">
+						<textarea style="width:100%; height: auto;" id="taskDefinitionStr"></textarea>
+
+						<div class='buttonDiv'>
+							<a class='btn btn-lg btn-primary' href="javascript:createTaskDefinition();">2. Create Task Definition</a><BR>
+							<a class='btn btn-lg btn-primary' href="javascript:taskset();">3a. TRY TO SET TASK with INTERNET</a><BR>
+							<a id="sendSMSbutton" class='btn btn-lg btn-danger' href="sms:+<? echo $CONF['SMS2way']['phoneNumber']?>">3b. SEND SMS TO +<? echo $CONF['SMS2way']['phoneNumber']?></a>
+
+						</div>
+					</div>
 				</div>
-			</td>
-		</tr>
-		<tr class="green0">
-			<td align="right" valign="top"><strong>Window Open</strong></td>
-			<td align="left" valign="top"><input name="windowOpen" type="text" id="windowOpen" value="12:00" size="10" maxlength="10">
-			</td>
-
-		</tr>
-		<tr class="green0">
-			<td align="right" valign="top"><strong>Window Close</strong></td>
-			<td align="left" valign="top"><input name="windowClose" type="text" id="windowClose" value="15:00" size="10" maxlength="10">
-			</td>
-		</tr>
-
-		<tr class="green0">
-			<td align="right" valign="top"><strong>Start Gate Open</strong></td>
-			<td align="left" valign="top">
-				<input name="startOpen" type="text" id="startOpen" value="13:00" size="10" maxlength="10">
-				</td>
-		</tr>
-		<tr class="lessStarts">
-			<td colspan="2" align="left" valign="top">
-				<a id="buttonMoreStarts" class="btn btn-primary" href="javascript:toogleStartGates();">More Start gates ?</a>
-			</td>
-		</tr>
-		<tr class="moreStarts">
-			<td colspan="2" align="left" valign="top">
-				<a id="buttonMoreStarts" class="btn btn-primary" href="javascript:toogleStartGates();">Less Start gates ?</a>
-
-				<div class="alert alert-warning">
-					Enter All Times in hh:mm and in Local Timezone
-					Leave as 00:00 or blank if no multiple start gates
-				</div>
-
-			</td>
-		</tr>
-		<tr class="moreStarts">
-			<td align="right" valign="top"><strong>Start Gate Open #2</strong></td>
-			<td align="left" valign="top">
-				<input name="startOpen2" type="text" id="startOpen2" value="" size="10" maxlength="10">
-			</td>
-		</tr>
-		<tr class="moreStarts">
-			<td align="right" valign="top"><strong>Start Gate Open #3</strong></td>
-			<td align="left" valign="top">
-				<input name="startOpen3" type="text" id="startOpen3" value="" size="10" maxlength="10">
-			</td>
-		</tr>
-		<tr class="moreStarts">
-			<td align="right" valign="top"><strong>Start Gate Open #4</strong></td>
-			<td align="left" valign="top">
-				<input name="startOpen4" type="text" id="startOpen4" value="" size="10" maxlength="10">
-			</td>
-		</tr>
-		<tr class="moreStarts">
-			<td align="right" valign="top"><strong>Start Gate Open #5</strong></td>
-			<td align="left" valign="top">
-				<input name="startOpen5" type="text" id="startOpen5" value="" size="10" maxlength="10">
-			</td>
-		</tr>
-		<tr class="moreStarts">
-			<td align="right" valign="top"><strong>Start Gate Open #6</strong></td>
-			<td align="left" valign="top">
-				<input name="startOpen6" type="text" id="startOpen6" value="" size="10" maxlength="10">
-			</td>
-		</tr>
-		<tr class="green0">
-			<td align="right" valign="top"><strong>Landing Deadline</strong></td>
-			<td align="left" valign="top"><input name="landingDeadline" type="text" id="landingDeadline" value="20:00" size="10" maxlength="10">
-			</td>
-		</tr>
-		<tr>
-			<td align="right" valign="top"><strong>Min Distance (in Km)</strong></td>
-			<td align="left" valign="top"><strong>
-					<input name="minDistance" type="text" id="minDistance" value="5" size="10" maxlength="10">
-				</strong></td>
-		</tr>
-	</tbody></table>
+				<BR>
+				<div id="resultDiv2" class="alert alert-success" style="display:none;"></div>
+			</div>
 		</div>
+
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				<div align="left" >Task Type & Times</div>
+			</div>
+			<div class="panel-body">
+				<table align="center" class='mainText' cellspacing='0' cellpadding="5">
+					<tr class='green0'>
+						<td align="right" valign="top"><strong>Type of Task</strong></td>
+						<td align="left" valign="top">
+							<strong>
+								<select name="taskType" type="text" id="taskType"  >
+									<option value='Race to Goal'>Race to Goal</option>
+									<option value='Elapsed Time' $sel >Elapsed Time</option>
+									<option value='Open Distance'>Open Distance</option>
+								</select>
+							</strong>
+						</td>
+					</tr >
+					<tr class='green0'>
+						<td align="right" valign="top"><strong>Task Status</strong></td>
+						<td align="left" valign="top"><strong>
+							<select name="taskStatus" type="text" id="taskStatus" >
+								<option value='0'>Active</option>
+								<option value='1'>Provisional</option>
+								<option value='2'>Canceled</option>
+								<option value='4'>Stopped</option>
+							</select>
+						</td>
+					</tr>
+					<tr class='green0'>
+						<td align="right" valign="top" colspan="2">
+							<div class="alert alert-warning">
+								Enter All Times in hh:mm and in Local Timezone
+							</div>
+						</td>
+					</tr>
+					<tr class='green0'>
+						<td align="right" valign="top"><strong>Window Open</strong></td>
+						<td align="left" valign="top"><input name="windowOpen" type="text" id="windowOpen" value="12:00" size="10" maxlength="10" />
+						</td>
+
+					</tr>
+					<tr class='green0'>
+						<td align="right" valign="top"><strong>Window Close</strong></td>
+						<td align="left" valign="top"><input name="windowClose" type="text" id="windowClose" value="15:00" size="10" maxlength="10" />
+						</td>
+					</tr>
+
+					<tr class='green0'>
+						<td align="right" valign="top"><strong>Start Gate Open</strong></td>
+						<td align="left" valign="top">
+							<input name="startOpen" type="text" id="startOpen" value="13:00" size="10" maxlength="10" />
+						</td>
+					</tr>
+					<tr class="lessStarts">
+						<td colspan="2" align="left" valign="top">
+							<a id="buttonMoreStarts" class='btn btn-primary'href="javascript:toogleStartGates();">More Start gates ?</a>
+						</td>
+					</tr>
+					<tr class="moreStarts">
+						<td colspan="2" align="left" valign="top">
+							<a id="buttonMoreStarts" class='btn btn-primary'href="javascript:toogleStartGates();">Less Start gates ?</a>
+
+							<div class="alert alert-warning">
+								Enter All Times in hh:mm and in Local Timezone
+								Leave as 00:00 or blank if no multiple start gates
+							</div>
+
+						</td>
+					</tr>
+					<tr class="moreStarts">
+						<td align="right" valign="top"><strong>Start Gate Open #2</strong></td>
+						<td align="left" valign="top">
+							<input name="startOpen2" type="text" id="startOpen2" value="" size="10" maxlength="10" />
+						</td>
+					</tr>
+					<tr class="moreStarts">
+						<td align="right" valign="top"><strong>Start Gate Open #3</strong></td>
+						<td align="left" valign="top">
+							<input name="startOpen3" type="text" id="startOpen3" value="" size="10" maxlength="10" />
+						</td>
+					</tr>
+					<tr class="moreStarts">
+						<td align="right" valign="top"><strong>Start Gate Open #4</strong></td>
+						<td align="left" valign="top">
+							<input name="startOpen4" type="text" id="startOpen4" value="" size="10" maxlength="10" />
+						</td>
+					</tr>
+					<tr class="moreStarts">
+						<td align="right" valign="top"><strong>Start Gate Open #5</strong></td>
+						<td align="left" valign="top">
+							<input name="startOpen5" type="text" id="startOpen5" value="" size="10" maxlength="10" />
+						</td>
+					</tr>
+					<tr class="moreStarts">
+						<td align="right" valign="top"><strong>Start Gate Open #6</strong></td>
+						<td align="left" valign="top">
+							<input name="startOpen6" type="text" id="startOpen6" value="" size="10" maxlength="10" />
+						</td>
+					</tr>
+					<tr class='green0'>
+						<td align="right" valign="top"><strong>Landing Deadline</strong></td>
+						<td align="left" valign="top"><input name="landingDeadline" type="text" id="landingDeadline" value="20:00" size="10" maxlength="10" />
+						</td>
+					</tr>
+					<tr>
+						<td align="right" valign="top"><strong>Min Distance (in Km)</strong></td>
+						<td align="left" valign="top"><strong>
+							<input name="minDistance" type="text" id="minDistance" value="5" size="10" maxlength="10" />
+						</strong></td>
+					</tr>
+				</table>
+			</div>
+		</div>
+
+
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				<div align="left" >Task Tunrpoints</div>
+			</div>
+			<div class="panel-body">
+				<table id="mainTable" width="100%" align="center" class='mainText taskAdminTable' cellspacing='0'>
+					<tr id="headerRow">
+						<th>#</th>
+						<th>Type</th>
+						<th>Turnpoint</th>
+						<th class="tpType" >Type</th>
+						<th>Radius (in m)</th>
+					</tr>
+				</table>
+			</div>
+		</div>
+
 	</div>
 
 
-	<div class="panel panel-primary">
-		<div class="panel-heading">
-			<div align="left">Task Tunrpoints</div>
-		</div>
-		<div class="panel-body">
-			<table id="mainTable" width="100%" align="center" class="mainText taskAdminTable" cellspacing="0">
-			<tbody>
-				<tr id="headerRow" style="background-color: rgb(250, 250, 255);">
-					<th>#</th>
-					<th>Type</th>
-					<th>Turnpoint</th>
-					<th class="tpType">Type</th>
-					<th>Radius (in m)</th>
-				</tr>
-			</tbody>
-			</table>
-		</div>
-	</div>
-</div>
+	<script>
+		/**
+		 @license
+		 sprintf.js from the php.js project - https://github.com/kvz/phpjs
+		 Directly from https://github.com/kvz/phpjs/blob/master/functions/strings/sprintf.js
+		 php.js is copyright 2012 Kevin van Zonneveld.
+		 */
 
+		function sprintf () {
+			// http://kevin.vanzonneveld.net
+			// +   original by: Ash Searle (http://hexmen.com/blog/)
+			// + namespaced by: Michael White (http://getsprink.com)
+			// +    tweaked by: Jack
+			// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+			// +      input by: Paulo Freitas
+			// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+			// +      input by: Brett Zamir (http://brett-zamir.me)
+			// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+			// +   improved by: Dj
+			// +   improved by: Allidylls
+			// *     example 1: sprintf("%01.2f", 123.1);
+			// *     returns 1: 123.10
+			// *     example 2: sprintf("[%10s]", 'monkey');
+			// *     returns 2: '[    monkey]'
+			// *     example 3: sprintf("[%'#10s]", 'monkey');
+			// *     returns 3: '[####monkey]'
+			// *     example 4: sprintf("%d", 123456789012345);
+			// *     returns 4: '123456789012345'
+			var regex = /%%|%(\d+\$)?([-+\'#0 ]*)(\*\d+\$|\*|\d+)?(\.(\*\d+\$|\*|\d+))?([scboxXuideEfFgG])/g;
+			var a = arguments,
+					i = 0,
+					format = a[i++];
 
-<script>
-	/**
-	 @license
-	 sprintf.js from the php.js project - https://github.com/kvz/phpjs
-	 Directly from https://github.com/kvz/phpjs/blob/master/functions/strings/sprintf.js
-	 php.js is copyright 2012 Kevin van Zonneveld.
-	 */
+			// pad()
+			var pad = function (str, len, chr, leftJustify) {
+				if (!chr) {
+					chr = ' ';
+				}
+				var padding = (str.length >= len) ? '' : Array(1 + len - str.length >>> 0).join(chr);
+				return leftJustify ? str + padding : padding + str;
+			};
 
-	function sprintf () {
-		// http://kevin.vanzonneveld.net
-		// +   original by: Ash Searle (http://hexmen.com/blog/)
-		// + namespaced by: Michael White (http://getsprink.com)
-		// +    tweaked by: Jack
-		// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
-		// +      input by: Paulo Freitas
-		// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
-		// +      input by: Brett Zamir (http://brett-zamir.me)
-		// +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
-		// +   improved by: Dj
-		// +   improved by: Allidylls
-		// *     example 1: sprintf("%01.2f", 123.1);
-		// *     returns 1: 123.10
-		// *     example 2: sprintf("[%10s]", 'monkey');
-		// *     returns 2: '[    monkey]'
-		// *     example 3: sprintf("[%'#10s]", 'monkey');
-		// *     returns 3: '[####monkey]'
-		// *     example 4: sprintf("%d", 123456789012345);
-		// *     returns 4: '123456789012345'
-		var regex = /%%|%(\d+\$)?([-+\'#0 ]*)(\*\d+\$|\*|\d+)?(\.(\*\d+\$|\*|\d+))?([scboxXuideEfFgG])/g;
-		var a = arguments,
-			i = 0,
-			format = a[i++];
+			// justify()
+			var justify = function (value, prefix, leftJustify, minWidth, zeroPad, customPadChar) {
+				var diff = minWidth - value.length;
+				if (diff > 0) {
+					if (leftJustify || !zeroPad) {
+						value = pad(value, minWidth, customPadChar, leftJustify);
+					} else {
+						value = value.slice(0, prefix.length) + pad('', diff, '0', true) + value.slice(prefix.length);
+					}
+				}
+				return value;
+			};
 
-		// pad()
-		var pad = function (str, len, chr, leftJustify) {
-			if (!chr) {
-				chr = ' ';
-			}
-			var padding = (str.length >= len) ? '' : Array(1 + len - str.length >>> 0).join(chr);
-			return leftJustify ? str + padding : padding + str;
-		};
+			// formatBaseX()
+			var formatBaseX = function (value, base, prefix, leftJustify, minWidth, precision, zeroPad) {
+				// Note: casts negative numbers to positive ones
+				var number = value >>> 0;
+				prefix = prefix && number && {
+					'2': '0b',
+					'8': '0',
+					'16': '0x'
+				}[base] || '';
+				value = prefix + pad(number.toString(base), precision || 0, '0', false);
+				return justify(value, prefix, leftJustify, minWidth, zeroPad);
+			};
 
-		// justify()
-		var justify = function (value, prefix, leftJustify, minWidth, zeroPad, customPadChar) {
-			var diff = minWidth - value.length;
-			if (diff > 0) {
-				if (leftJustify || !zeroPad) {
-					value = pad(value, minWidth, customPadChar, leftJustify);
+			// formatString()
+			var formatString = function (value, leftJustify, minWidth, precision, zeroPad, customPadChar) {
+				if (precision != null) {
+					value = value.slice(0, precision);
+				}
+				return justify(value, '', leftJustify, minWidth, zeroPad, customPadChar);
+			};
+
+			// doFormat()
+			var doFormat = function (substring, valueIndex, flags, minWidth, _, precision, type) {
+				var number;
+				var prefix;
+				var method;
+				var textTransform;
+				var value;
+
+				if (substring == '%%') {
+					return '%';
+				}
+
+				// parse flags
+				var leftJustify = false,
+						positivePrefix = '',
+						zeroPad = false,
+						prefixBaseX = false,
+						customPadChar = ' ';
+				var flagsl = flags.length;
+				for (var j = 0; flags && j < flagsl; j++) {
+					switch (flags.charAt(j)) {
+						case ' ':
+							positivePrefix = ' ';
+							break;
+						case '+':
+							positivePrefix = '+';
+							break;
+						case '-':
+							leftJustify = true;
+							break;
+						case "'":
+							customPadChar = flags.charAt(j + 1);
+							break;
+						case '0':
+							zeroPad = true;
+							break;
+						case '#':
+							prefixBaseX = true;
+							break;
+					}
+				}
+
+				// parameters may be null, undefined, empty-string or real valued
+				// we want to ignore null, undefined and empty-string values
+				if (!minWidth) {
+					minWidth = 0;
+				} else if (minWidth == '*') {
+					minWidth = +a[i++];
+				} else if (minWidth.charAt(0) == '*') {
+					minWidth = +a[minWidth.slice(1, -1)];
 				} else {
-					value = value.slice(0, prefix.length) + pad('', diff, '0', true) + value.slice(prefix.length);
+					minWidth = +minWidth;
 				}
-			}
-			return value;
-		};
 
-		// formatBaseX()
-		var formatBaseX = function (value, base, prefix, leftJustify, minWidth, precision, zeroPad) {
-			// Note: casts negative numbers to positive ones
-			var number = value >>> 0;
-			prefix = prefix && number && {
-				'2': '0b',
-				'8': '0',
-				'16': '0x'
-			}[base] || '';
-			value = prefix + pad(number.toString(base), precision || 0, '0', false);
-			return justify(value, prefix, leftJustify, minWidth, zeroPad);
-		};
-
-		// formatString()
-		var formatString = function (value, leftJustify, minWidth, precision, zeroPad, customPadChar) {
-			if (precision != null) {
-				value = value.slice(0, precision);
-			}
-			return justify(value, '', leftJustify, minWidth, zeroPad, customPadChar);
-		};
-
-		// doFormat()
-		var doFormat = function (substring, valueIndex, flags, minWidth, _, precision, type) {
-			var number;
-			var prefix;
-			var method;
-			var textTransform;
-			var value;
-
-			if (substring == '%%') {
-				return '%';
-			}
-
-			// parse flags
-			var leftJustify = false,
-				positivePrefix = '',
-				zeroPad = false,
-				prefixBaseX = false,
-				customPadChar = ' ';
-			var flagsl = flags.length;
-			for (var j = 0; flags && j < flagsl; j++) {
-				switch (flags.charAt(j)) {
-					case ' ':
-						positivePrefix = ' ';
-						break;
-					case '+':
-						positivePrefix = '+';
-						break;
-					case '-':
-						leftJustify = true;
-						break;
-					case "'":
-						customPadChar = flags.charAt(j + 1);
-						break;
-					case '0':
-						zeroPad = true;
-						break;
-					case '#':
-						prefixBaseX = true;
-						break;
+				// Note: undocumented perl feature:
+				if (minWidth < 0) {
+					minWidth = -minWidth;
+					leftJustify = true;
 				}
-			}
 
-			// parameters may be null, undefined, empty-string or real valued
-			// we want to ignore null, undefined and empty-string values
-			if (!minWidth) {
-				minWidth = 0;
-			} else if (minWidth == '*') {
-				minWidth = +a[i++];
-			} else if (minWidth.charAt(0) == '*') {
-				minWidth = +a[minWidth.slice(1, -1)];
-			} else {
-				minWidth = +minWidth;
-			}
+				if (!isFinite(minWidth)) {
+					throw new Error('sprintf: (minimum-)width must be finite');
+				}
 
-			// Note: undocumented perl feature:
-			if (minWidth < 0) {
-				minWidth = -minWidth;
-				leftJustify = true;
-			}
+				if (!precision) {
+					precision = 'fFeE'.indexOf(type) > -1 ? 6 : (type == 'd') ? 0 : undefined;
+				} else if (precision == '*') {
+					precision = +a[i++];
+				} else if (precision.charAt(0) == '*') {
+					precision = +a[precision.slice(1, -1)];
+				} else {
+					precision = +precision;
+				}
 
-			if (!isFinite(minWidth)) {
-				throw new Error('sprintf: (minimum-)width must be finite');
-			}
+				// grab value using valueIndex if required?
+				value = valueIndex ? a[valueIndex.slice(0, -1)] : a[i++];
 
-			if (!precision) {
-				precision = 'fFeE'.indexOf(type) > -1 ? 6 : (type == 'd') ? 0 : undefined;
-			} else if (precision == '*') {
-				precision = +a[i++];
-			} else if (precision.charAt(0) == '*') {
-				precision = +a[precision.slice(1, -1)];
-			} else {
-				precision = +precision;
-			}
+				switch (type) {
+					case 's':
+						return formatString(String(value), leftJustify, minWidth, precision, zeroPad, customPadChar);
+					case 'c':
+						return formatString(String.fromCharCode(+value), leftJustify, minWidth, precision, zeroPad);
+					case 'b':
+						return formatBaseX(value, 2, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+					case 'o':
+						return formatBaseX(value, 8, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+					case 'x':
+						return formatBaseX(value, 16, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+					case 'X':
+						return formatBaseX(value, 16, prefixBaseX, leftJustify, minWidth, precision, zeroPad).toUpperCase();
+					case 'u':
+						return formatBaseX(value, 10, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+					case 'i':
+					case 'd':
+						number = +value || 0;
+						number = Math.round(number - number % 1); // Plain Math.round doesn't just truncate
+						prefix = number < 0 ? '-' : positivePrefix;
+						value = prefix + pad(String(Math.abs(number)), precision, '0', false);
+						return justify(value, prefix, leftJustify, minWidth, zeroPad);
+					case 'e':
+					case 'E':
+					case 'f': // Should handle locales (as per setlocale)
+					case 'F':
+					case 'g':
+					case 'G':
+						number = +value;
+						prefix = number < 0 ? '-' : positivePrefix;
+						method = ['toExponential', 'toFixed', 'toPrecision']['efg'.indexOf(type.toLowerCase())];
+						textTransform = ['toString', 'toUpperCase']['eEfFgG'.indexOf(type) % 2];
+						value = prefix + Math.abs(number)[method](precision);
+						return justify(value, prefix, leftJustify, minWidth, zeroPad)[textTransform]();
+					default:
+						return substring;
+				}
+			};
 
-			// grab value using valueIndex if required?
-			value = valueIndex ? a[valueIndex.slice(0, -1)] : a[i++];
-
-			switch (type) {
-				case 's':
-					return formatString(String(value), leftJustify, minWidth, precision, zeroPad, customPadChar);
-				case 'c':
-					return formatString(String.fromCharCode(+value), leftJustify, minWidth, precision, zeroPad);
-				case 'b':
-					return formatBaseX(value, 2, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
-				case 'o':
-					return formatBaseX(value, 8, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
-				case 'x':
-					return formatBaseX(value, 16, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
-				case 'X':
-					return formatBaseX(value, 16, prefixBaseX, leftJustify, minWidth, precision, zeroPad).toUpperCase();
-				case 'u':
-					return formatBaseX(value, 10, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
-				case 'i':
-				case 'd':
-					number = +value || 0;
-					number = Math.round(number - number % 1); // Plain Math.round doesn't just truncate
-					prefix = number < 0 ? '-' : positivePrefix;
-					value = prefix + pad(String(Math.abs(number)), precision, '0', false);
-					return justify(value, prefix, leftJustify, minWidth, zeroPad);
-				case 'e':
-				case 'E':
-				case 'f': // Should handle locales (as per setlocale)
-				case 'F':
-				case 'g':
-				case 'G':
-					number = +value;
-					prefix = number < 0 ? '-' : positivePrefix;
-					method = ['toExponential', 'toFixed', 'toPrecision']['efg'.indexOf(type.toLowerCase())];
-					textTransform = ['toString', 'toUpperCase']['eEfFgG'.indexOf(type) % 2];
-					value = prefix + Math.abs(number)[method](precision);
-					return justify(value, prefix, leftJustify, minWidth, zeroPad)[textTransform]();
-				default:
-					return substring;
-			}
-		};
-
-		return format.replace(regex, doFormat);
-	}
+			return format.replace(regex, doFormat);
+		}
 
 
-</script></div></body></html>
+	</script>
+
+</div>
+</body>
+</html>
